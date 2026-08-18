@@ -1,0 +1,53 @@
+package com.boxpix.app.ui
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+import com.boxpix.app.ui.explorer.ExplorerScreen
+import com.boxpix.app.ui.onboarding.OnboardingScreen
+import com.boxpix.app.ui.settings.SettingsScreen
+import com.boxpix.app.ui.theme.boxpixColors
+import com.boxpix.app.ui.trash.TrashScreen
+
+@Composable
+fun BoxpixRoot(viewModel: RootViewModel = hiltViewModel()) {
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(boxpixColors.bg),
+    ) {
+        when (state) {
+            RootViewModel.RootState.Loading -> Unit
+            RootViewModel.RootState.Onboarding -> OnboardingScreen()
+            RootViewModel.RootState.Main -> MainNavHost()
+        }
+    }
+}
+
+@Composable
+private fun MainNavHost() {
+    val nav = rememberNavController()
+    NavHost(navController = nav, startDestination = "explorer") {
+        composable("explorer") {
+            ExplorerScreen(onOpenSettings = { nav.navigate("settings") })
+        }
+        composable("settings") {
+            SettingsScreen(
+                onBack = { nav.popBackStack() },
+                onOpenTrash = { nav.navigate("trash") },
+            )
+        }
+        composable("trash") {
+            TrashScreen(onBack = { nav.popBackStack() })
+        }
+    }
+}

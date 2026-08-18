@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Boxpix</string>
+
+    <!-- Onboarding — start -->
+    <string name="onboarding_title">Boxpix</string>
+    <string name="onboarding_explainer">Your photos, straight from the disk plugged into your Freebox. No cloud.</string>
+    <string name="onboarding_connect">Connect to my Freebox</string>
+    <string name="onboarding_advanced">Advanced setup</string>
+    <string name="onboarding_advanced_host_label">Host</string>
+    <string name="onboarding_advanced_token_label">App token</string>
+    <string name="onboarding_advanced_token_stored">Stored</string>
+    <string name="onboarding_advanced_token_missing">Not stored</string>
+
+    <!-- Onboarding — pairing -->
+    <string name="pairing_title">Confirm on your Freebox</string>
+    <string name="pairing_explainer">A confirmation is showing on the Freebox display. Press the arrow to accept.</string>
+    <string name="pairing_cancel">Cancel</string>
+
+    <!-- Onboarding — disk choice -->
+    <string name="disk_title">Choose a disk</string>
+    <string name="disk_subtitle">Boxpix will only browse the disk you pick.</string>
+    <string name="disk_root_folder">Root folder</string>
+    <string name="disk_start_scanning">Start scanning</string>
+    <string name="disk_up_one_level">Up one level</string>
+
+    <!-- Errors -->
+    <string name="error_box_not_found">No Freebox found on this network. Check you are on the same Wi-Fi as the box.</string>
+    <string name="error_pairing_denied">The request was denied on the Freebox. Try again and accept on the box display.</string>
+    <string name="error_pairing_timeout">The Freebox did not get an answer in time. Try again when you are near the box.</string>
+    <string name="error_network">The Freebox could not be reached. Check the connection and try again.</string>
+    <string name="error_api">The Freebox refused the request (%1$s).</string>
+
+    <!-- System states -->
+    <string name="state_waking_disk">Waking the disk…</string>
+    <string name="state_waking_disk_hint">The drive was asleep. The first request takes a few seconds — nothing is wrong.</string>
+    <string name="state_retry">Try again</string>
+    <string name="state_empty_folder">This folder is empty.</string>
+
+    <!-- Explorer -->
+    <string name="explorer_sort">Sort</string>
+    <string name="explorer_sort_name">Name</string>
+    <string name="explorer_sort_date">Date</string>
+    <string name="explorer_sort_size">Size</string>
+    <string name="explorer_new_folder">New folder</string>
+    <plurals name="explorer_selected">
+        <item quantity="one">%1$d selected</item>
+        <item quantity="other">%1$d selected</item>
+    </plurals>
+    <string name="explorer_action_move">Move</string>
+    <string name="explorer_action_trash">Trash</string>
+    <string name="explorer_action_rename">Rename</string>
+    <string name="explorer_action_select_all">Select all</string>
+    <plurals name="explorer_items_count">
+        <item quantity="one">%1$d item</item>
+        <item quantity="other">%1$d items</item>
+    </plurals>
+    <string name="badge_fake">Fake</string>
+    <string name="tab_explorer">Explorer</string>
+    <string name="tab_gallery">Gallery</string>
+
+    <!-- Dialogs -->
+    <string name="dialog_new_folder_title">New folder</string>
+    <string name="dialog_rename_title">Rename</string>
+    <string name="dialog_name_label">Name</string>
+    <string name="dialog_create">Create</string>
+    <string name="dialog_rename">Rename</string>
+    <string name="dialog_cancel">Cancel</string>
+
+    <!-- Move sheet -->
+    <plurals name="move_title">
+        <item quantity="one">Move %1$d item</item>
+        <item quantity="other">Move %1$d items</item>
+    </plurals>
+    <string name="move_here">Move here</string>
+    <string name="move_up">Up one level</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_group_appearance">Appearance</string>
+    <string name="settings_grid_columns">Grid columns</string>
+    <string name="settings_grid_columns_hint">Explorer albums · photo grids add one</string>
+    <string name="settings_group_trash">Trash</string>
+    <string name="settings_trash_row">Trash</string>
+    <string name="settings_trash_auto">Auto purge after 30 days</string>
+    <string name="settings_group_connection">Connection</string>
+    <string name="settings_change_root">Change root folder</string>
+    <string name="settings_change_root_hint">Pick another disk or folder, no re-pairing</string>
+    <string name="settings_reset_pairing">Reset pairing</string>
+    <string name="settings_reset_pairing_hint">Forget the app token and start over</string>
+    <string name="settings_group_debug">Debug</string>
+    <string name="settings_use_fake">Use fake data</string>
+    <string name="settings_use_fake_hint">In-memory library, no Freebox needed</string>
+    <string name="settings_sleep_disk">Simulate disk sleep</string>
+    <string name="settings_sleep_disk_hint">Next request stalls for 6 seconds</string>
+    <string name="settings_reset_fake">Reset fake data</string>
+
+    <!-- Trash screen -->
+    <string name="trash_title">Trash</string>
+    <string name="trash_empty">Trash is empty.</string>
+    <string name="trash_restore">Restore</string>
+    <string name="trash_delete_forever">Delete forever</string>
+    <string name="trash_empty_all">Empty trash</string>
+    <string name="trash_auto_note">Items are deleted automatically after 30 days.</string>
+</resources>

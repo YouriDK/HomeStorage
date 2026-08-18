@@ -1,0 +1,25 @@
+package com.boxpix.app.di
+
+import android.content.Context
+import androidx.room.Room
+import com.boxpix.app.data.db.BoxpixDatabase
+import com.boxpix.app.data.db.TrashDao
+import dagger.Module
+import dagger.Provides
+import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
+import dagger.hilt.components.SingletonComponent
+import javax.inject.Singleton
+
+@Module
+@InstallIn(SingletonComponent::class)
+object DatabaseModule {
+
+    @Provides
+    @Singleton
+    fun database(@ApplicationContext context: Context): BoxpixDatabase =
+        Room.databaseBuilder(context, BoxpixDatabase::class.java, "boxpix.db").build()
+
+    @Provides
+    fun trashDao(db: BoxpixDatabase): TrashDao = db.trashDao()
+}

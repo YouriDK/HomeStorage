@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    LAN: the box is reached as mafreebox.freebox.fr — HTTPS with the Freebox CA when
+    possible, cleartext allowed for this single host (api_version discovery is HTTP).
+    Remote: *.fbxos.fr over HTTPS only, validated against the two Freebox Root CAs
+    (the box's certificate is not issued by a public CA).
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">mafreebox.freebox.fr</domain>
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="@raw/freebox_root_ca" />
+            <certificates src="@raw/freebox_ecc_root_ca" />
+        </trust-anchors>
+    </domain-config>
+
+    <domain-config>
+        <domain includeSubdomains="true">fbxos.fr</domain>
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="@raw/freebox_root_ca" />
+            <certificates src="@raw/freebox_ecc_root_ca" />
+        </trust-anchors>
+    </domain-config>
+</network-security-config>

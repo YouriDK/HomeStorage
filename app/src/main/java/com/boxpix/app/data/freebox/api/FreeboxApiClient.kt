@@ -1,0 +1,247 @@
+package com.boxpix.app.data.freebox.api
+
+import android.util.Log
+import com.boxpix.app.BuildConfig
+import com.boxpix.app.core.FbxResult
+import com.boxpix.app.core.FreeboxError
+import io.ktor.client.HttpClient
+import io.ktor.client.call.body
+import io.ktor.client.plugins.timeout
+import io.ktor.client.request.get
+import io.ktor.client.request.header
+import io.ktor.client.request.parameter
+import io.ktor.client.request.post
+import io.ktor.client.request.setBody
+import io.ktor.client.statement.HttpResponse
+import io.ktor.client.statement.bodyAsText
+import io.ktor.http.ContentType
+import io.ktor.http.HttpHeaders
+import io.ktor.http.contentType
+import io.ktor.http.isSuccess
+import kotlinx.coroutines.CancellationException
+import kotlinx.serialization.SerializationException
+import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import javax.inject.Inject
+import javax.inject.Singleton
+
+/**
+ * Thin typed wrapper over the FreeboxOS HTTP API. Stateless: callers provide the
+ * resolved base URL (e.g. "http://mafreebox.freebox.fr/api/v12") and, where needed,
+ * the session token. Session lifecycle lives in FreeboxSessionManager.
+ *
+ * In debug builds every failure is logged with the full URL and the exact cause
+ * (tag BoxpixHttp) so a field failure is diagnosable from logcat alone. Tokens
+ * and response bodies are never logged.
+ */
+@Singleton
+class FreeboxApiClient @Inject constructor(
+    private val http: HttpClient,
+    private val json: Json,
+) {
+
+    /** Unauthenticated discovery; also serves as the LAN reachability probe. */
+    suspend fun apiVersion(
+        host: String,
+        https: Boolean = false,
+        timeoutMillis: Long = DISCOVERY_TIMEOUT_MS,
+    ): FbxResult<ApiVersionDto> {
+        val scheme = if (https) "https" else "http"
+        val url = "$scheme://$host/api_version"
+        val response = try {
+            http.get(url) {
+                timeout {
+                    requestTimeoutMillis = timeoutMillis
+                    connectTimeoutMillis = timeoutMillis
+                }
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            logTransportFailure(url, e)
+            return FbxResult.Err(FreeboxError.Network(e))
+        }
+        if (!response.status.isSuccess()) {
+            logHttpFailure(url, response.status.value, null)
+            return FbxResult.Err(FreeboxError.Http(response.status.value))
+        }
+        return try {
+            FbxResult.Ok(json.decodeFromString<ApiVersionDto>(response.bodyAsText()))
+        } catch (e: Exception) {
+            logTransportFailure(url, e)
+            FbxResult.Err(FreeboxError.Network(e))
+        }
+    }
+
+    suspend fun authorize(base: String, request: AuthorizeRequestDto): FbxResult<AuthorizeResultDto> =
+        envelope("$base/login/authorize/") { url ->
+            http.post(url) {
+                contentType(ContentType.Application.Json)
+                setBody(json.encodeToString(AuthorizeRequestDto.serializer(), request))
+            }
+        }
+
+    suspend fun trackAuthorization(base: String, trackId: Int): FbxResult<TrackAuthorizationResultDto> =
+        envelope("$base/login/authorize/$trackId") { url -> http.get(url) }
+
+    suspend fun loginChallenge(base: String): FbxResult<LoginResultDto> =
+        envelope("$base/login/") { url -> http.get(url) }
+
+    suspend fun openSession(base: String, appId: String, password: String): FbxResult<SessionResultDto> =
+        envelope("$base/login/session/") { url ->
+            http.post(url) {
+                contentType(ContentType.Application.Json)
+                setBody(json.encodeToString(SessionRequestDto.serializer(), SessionRequestDto(appId, password)))
+            }
+        }
+
+    suspend fun ls(
+        base: String,
+        sessionToken: String,
+        pathB64: String,
+        onlyFolder: Boolean = false,
+        removeHidden: Boolean = false,
+        countSubFolder: Boolean = false,
+    ): FbxResult<List<FileInfoDto>> {
+        val url = "$base/fs/ls/$pathB64"
+        val outcome = envelopeNullable<JsonElement>(url) {
+            http.get(it) {
+                header(X_FBX_APP_AUTH, sessionToken)
+                if (onlyFolder) parameter("onlyFolder", 1)
+                if (removeHidden) parameter("removeHidden", 1)
+                if (countSubFolder) parameter("countSubFolder", 1)
+            }
+        }
+        return when (outcome) {
+            is FbxResult.Ok -> try {
+                FbxResult.Ok(parseFileList(outcome.value))
+            } catch (e: Exception) {
+                logTransportFailure(url, e)
+                FbxResult.Err(FreeboxError.Network(e))
+            }
+            is FbxResult.Err -> outcome
+        }
+    }
+
+    /**
+     * fs/ls result shape depends on the firmware generation: the documented v4-era
+     * form is a bare array of entries, but API v16 (Freebox Pop, observed at the
+     * M1 gate) wraps it as {"entries": [...]}. Accept both.
+     */
+    private fun parseFileList(result: JsonElement?): List<FileInfoDto> = when (result) {
+        null, JsonNull -> emptyList()
+        is JsonArray -> json.decodeFromJsonElement(fileListSerializer, result)
+        is JsonObject -> result["entries"]
+            ?.takeIf { it !is JsonNull }
+            ?.let { json.decodeFromJsonElement(fileListSerializer, it) }
+            ?: emptyList()
+        else -> throw SerializationException("Unexpected fs/ls result shape: $result")
+    }
+
+    private val fileListSerializer = ListSerializer(FileInfoDto.serializer())
+
+    /** Raw file download via /dl/; the box honours Range requests on this endpoint. */
+    suspend fun download(
+        base: String,
+        sessionToken: String,
+        pathB64: String,
+        range: LongRange? = null,
+    ): FbxResult<ByteArray> {
+        val url = "$base/dl/$pathB64"
+        val response = try {
+            http.get(url) {
+                header(X_FBX_APP_AUTH, sessionToken)
+                if (range != null) header(HttpHeaders.Range, "bytes=${range.first}-${range.last}")
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            logTransportFailure(url, e)
+            return FbxResult.Err(FreeboxError.Network(e))
+        }
+        if (!response.status.isSuccess()) {
+            logHttpFailure(url, response.status.value, null)
+            return FbxResult.Err(FreeboxError.Http(response.status.value))
+        }
+        return try {
+            FbxResult.Ok(response.body())
+        } catch (e: Exception) {
+            logTransportFailure(url, e)
+            FbxResult.Err(FreeboxError.Network(e))
+        }
+    }
+
+    /** Executes a request and decodes the standard {success, result, error_code, msg} envelope. */
+    private suspend inline fun <reified T> envelope(
+        url: String,
+        crossinline request: suspend (String) -> HttpResponse,
+    ): FbxResult<T> = envelopeNullable<T>(url, request).let { outcome ->
+        when (outcome) {
+            is FbxResult.Ok -> outcome.value
+                ?.let { FbxResult.Ok(it) }
+                ?: FbxResult.Err(FreeboxError.Api("missing_result"))
+            is FbxResult.Err -> outcome
+        }
+    }
+
+    /** Like [envelope] but tolerates success answers without a result (e.g. empty listings). */
+    private suspend inline fun <reified T> envelopeNullable(
+        url: String,
+        crossinline request: suspend (String) -> HttpResponse,
+    ): FbxResult<T?> {
+        val response = try {
+            request(url)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            logTransportFailure(url, e)
+            return FbxResult.Err(FreeboxError.Network(e))
+        }
+        val body = try {
+            response.bodyAsText()
+        } catch (e: Exception) {
+            logTransportFailure(url, e)
+            return FbxResult.Err(FreeboxError.Network(e))
+        }
+        val parsed = try {
+            json.decodeFromString<FreeboxResponse<T>>(body)
+        } catch (e: Exception) {
+            // Not a Freebox envelope: report the transport-level failure.
+            return if (!response.status.isSuccess()) {
+                logHttpFailure(url, response.status.value, null)
+                FbxResult.Err(FreeboxError.Http(response.status.value))
+            } else {
+                logTransportFailure(url, e)
+                FbxResult.Err(FreeboxError.Network(e))
+            }
+        }
+        return if (parsed.success) {
+            FbxResult.Ok(parsed.result)
+        } else {
+            logHttpFailure(url, response.status.value, parsed.errorCode)
+            FbxResult.Err(FreeboxError.Api(parsed.errorCode ?: "unknown_error", parsed.msg))
+        }
+    }
+
+    private fun logTransportFailure(url: String, cause: Exception) {
+        if (BuildConfig.DEBUG) {
+            Log.e(TAG, "FAIL $url -> ${cause.javaClass.simpleName}: ${cause.message}")
+        }
+    }
+
+    private fun logHttpFailure(url: String, status: Int, errorCode: String?) {
+        if (BuildConfig.DEBUG) {
+            Log.e(TAG, "FAIL $url -> HTTP $status${errorCode?.let { " error_code=$it" }.orEmpty()}")
+        }
+    }
+
+    companion object {
+        const val X_FBX_APP_AUTH = "X-Fbx-App-Auth"
+        const val DISCOVERY_TIMEOUT_MS = 2_500L
+        private const val TAG = "BoxpixHttp"
+    }
+}

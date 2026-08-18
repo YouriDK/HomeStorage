@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Vector conversion of graphics/app-icon.svg (client-designed icon).
+    The artwork is scaled into the adaptive-icon safe zone (central Ø66/108)
+    so circle and squircle launcher masks never crop the roof or the tiles.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="512"
+    android:viewportHeight="512">
+
+    <group
+        android:pivotX="256"
+        android:pivotY="282"
+        android:scaleX="0.62"
+        android:scaleY="0.62"
+        android:translateY="-26">
+
+        <!-- Chimney -->
+        <path
+            android:fillColor="#E6A94E"
+            android:pathData="M351,106 h16 a10,10 0 0 1 10,10 v44 a10,10 0 0 1 -10,10 h-16 a10,10 0 0 1 -10,-10 v-44 a10,10 0 0 1 10,-10 Z" />
+        <!-- Roof -->
+        <path
+            android:fillColor="#E6A94E"
+            android:pathData="M256,74 L96,214 a18,18 0 0 0 23.7,27.1 L256,122 L392.3,241.1 A18,18 0 0 0 416,214 Z" />
+        <!-- Four tiles -->
+        <path
+            android:fillColor="#E6A94E"
+            android:pathData="M161,262 h58 a26,26 0 0 1 26,26 v58 a26,26 0 0 1 -26,26 h-58 a26,26 0 0 1 -26,-26 v-58 a26,26 0 0 1 26,-26 Z" />
+        <path
+            android:fillColor="#E6A94E"
+            android:pathData="M293,262 h58 a26,26 0 0 1 26,26 v58 a26,26 0 0 1 -26,26 h-58 a26,26 0 0 1 -26,-26 v-58 a26,26 0 0 1 26,-26 Z" />
+        <path
+            android:fillColor="#E6A94E"
+            android:pathData="M161,380 h58 a26,26 0 0 1 26,26 v58 a26,26 0 0 1 -26,26 h-58 a26,26 0 0 1 -26,-26 v-58 a26,26 0 0 1 26,-26 Z" />
+        <path
+            android:fillColor="#E6A94E"
+            android:pathData="M293,380 h58 a26,26 0 0 1 26,26 v58 a26,26 0 0 1 -26,26 h-58 a26,26 0 0 1 -26,-26 v-58 a26,26 0 0 1 26,-26 Z" />
+
+        <!-- Photo glyph: sun + mountains -->
+        <path
+            android:fillColor="#0A0A0C"
+            android:pathData="M201,292 a13,13 0 1 0 26,0 a13,13 0 1 0 -26,0 Z" />
+        <path
+            android:fillColor="#0A0A0C"
+            android:pathData="M152,346 L186,304 L203,324 L218,308 L243,346 Z" />
+        <!-- Play glyph -->
+        <path
+            android:fillColor="#0A0A0C"
+            android:pathData="M172,410 L172,466 L218,438 Z" />
+        <!-- Copy glyph -->
+        <path
+            android:fillColor="#0A0A0C"
+            android:pathData="M298,398 h32 a10,10 0 0 1 10,10 v24 a10,10 0 0 1 -10,10 h-32 a10,10 0 0 1 -10,-10 v-24 a10,10 0 0 1 10,-10 Z" />
+        <path
+            android:fillColor="#0A0A0C"
+            android:strokeColor="#E6A94E"
+            android:strokeWidth="7"
+            android:pathData="M316,416 h32 a10,10 0 0 1 10,10 v24 a10,10 0 0 1 -10,10 h-32 a10,10 0 0 1 -10,-10 v-24 a10,10 0 0 1 10,-10 Z" />
+    </group>
+</vector>

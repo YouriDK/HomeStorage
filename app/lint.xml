@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<lint>
+    <!-- False positive: adaptive-icon resources must live in -v26 even with minSdk 26,
+         AAPT refuses them in bare mipmap-anydpi. -->
+    <issue id="ObsoleteSdkInt">
+        <ignore path="**/mipmap-anydpi-v26" />
+    </issue>
+    <!-- Dependency bumps are a deliberate, separate task — not a per-build warning. -->
+    <issue id="GradleDependency" severity="ignore" />
+    <issue id="AndroidGradlePluginVersion" severity="ignore" />
+</lint>

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Debug-only override: allows cleartext to any host so the advanced-mode manual
+    host also works with a raw LAN IP (e.g. 192.168.1.254) while testing. The main
+    config (release) keeps cleartext confined to mafreebox.freebox.fr.
+-->
+<network-security-config xmlns:tools="http://schemas.android.com/tools"
+    tools:ignore="InsecureBaseConfiguration">
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="@raw/freebox_root_ca" />
+            <certificates src="@raw/freebox_ecc_root_ca" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>
