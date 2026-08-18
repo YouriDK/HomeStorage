@@ -67,7 +67,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.boxpix.app.R
 import com.boxpix.app.data.prefs.SortOrder
@@ -91,6 +93,16 @@ fun ExplorerScreen(
 
     BackHandler(enabled = state.selectionMode || state.depth > 0) {
         viewModel.onBack()
+    }
+
+    // The disk is the source of truth: silently re-list whenever the Explorer
+    // comes back into view (return from Trash/Settings, app foregrounded) so
+    // restores and out-of-app changes appear without a manual rescan. The first
+    // resume is skipped — the ViewModel already loads on creation.
+    var firstResume by rememberSaveable { mutableStateOf(true) }
+    LifecycleResumeEffect(Unit) {
+        if (firstResume) firstResume = false else viewModel.reload()
+        onPauseOrDispose { }
     }
 
     var showNewFolderDialog by remember { mutableStateOf(false) }
