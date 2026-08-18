@@ -36,6 +36,9 @@ interface StorageProvider {
         /** Destination already holds an entry with that name. */
         const val ERROR_CONFLICT = "destination_conflict"
 
+        /** Conflict spellings observed across firmware generations. */
+        val CONFLICT_CODES = setOf(ERROR_CONFLICT, "exists", "already_exists", "file_exists")
+
         const val ERROR_NOT_FOUND = "path_not_found"
 
         private fun <T> unsupported(): FbxResult<T> =

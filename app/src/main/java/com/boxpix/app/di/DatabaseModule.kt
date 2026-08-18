@@ -18,7 +18,10 @@ object DatabaseModule {
     @Provides
     @Singleton
     fun database(@ApplicationContext context: Context): BoxpixDatabase =
-        Room.databaseBuilder(context, BoxpixDatabase::class.java, "boxpix.db").build()
+        Room.databaseBuilder(context, BoxpixDatabase::class.java, "boxpix.db")
+            // Pre-release: the index is a reconstructible cache, migrations start at v1.0.
+            .fallbackToDestructiveMigration()
+            .build()
 
     @Provides
     fun trashDao(db: BoxpixDatabase): TrashDao = db.trashDao()

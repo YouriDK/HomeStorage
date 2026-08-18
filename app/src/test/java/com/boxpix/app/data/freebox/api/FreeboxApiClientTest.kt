@@ -228,6 +228,55 @@ class FreeboxApiClientTest {
     }
 
     @Test
+    fun `mkdir and rename post the documented bodies`() = runTest {
+        val bodies = mutableListOf<String>()
+        val api = client { request ->
+            bodies += String(request.body.toByteArray())
+            respondJson("""{"success":true}""")
+        }
+        api.mkdir("base", "token", "cGFyZW50", "New folder")
+        api.rename("base", "token", "b2xk", "new-name.jpg")
+
+        assertTrue(bodies[0].contains("\"parent\":\"cGFyZW50\""))
+        assertTrue(bodies[0].contains("\"dirname\":\"New folder\""))
+        assertTrue(bodies[1].contains("\"src\":\"b2xk\""))
+        assertTrue(bodies[1].contains("\"dst\":\"new-name.jpg\""))
+    }
+
+    @Test
+    fun `mv posts files and dst then returns the task`() = runTest {
+        val api = client { request ->
+            val body = String(request.body.toByteArray())
+            assertTrue(body.contains("\"files\":[\"YQ==\",\"Yg==\"]"))
+            assertTrue(body.contains("\"dst\":\"ZGVzdA==\""))
+            respondJson("""{"success":true,"result":{"id":33,"state":"running","error":"none","curr_bytes":0}}""")
+        }
+        val task = (api.mv("base", "token", listOf("YQ==", "Yg=="), "ZGVzdA==") as FbxResult.Ok).value
+        assertEquals(33, task.id)
+        assertTrue(!task.isDone && !task.isFailed)
+    }
+
+    @Test
+    fun `rm omits dst and fsTask reports terminal states`() = runTest {
+        val api = client { request ->
+            if (request.url.encodedPath.endsWith("/fs/rm/")) {
+                val body = String(request.body.toByteArray())
+                assertTrue(body.contains("\"files\":[\"YQ==\"]"))
+                assertTrue(!body.contains("dst"))
+                respondJson("""{"success":true,"result":{"id":7,"state":"running"}}""")
+            } else {
+                respondJson("""{"success":true,"result":{"id":7,"state":"failed","error":"disk_full"}}""")
+            }
+        }
+        val started = (api.rm("base", "token", listOf("YQ==")) as FbxResult.Ok).value
+        assertEquals(7, started.id)
+
+        val polled = (api.fsTask("base", "token", 7) as FbxResult.Ok).value
+        assertTrue(polled.isFailed)
+        assertEquals("disk_full", polled.errorCode)
+    }
+
+    @Test
     fun `download sends a range header when asked`() = runTest {
         val api = client { request ->
             assertEquals("bytes=0-65535", request.headers[HttpHeaders.Range])

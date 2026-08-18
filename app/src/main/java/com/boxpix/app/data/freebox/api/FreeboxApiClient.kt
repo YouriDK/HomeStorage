@@ -144,6 +144,65 @@ class FreeboxApiClient @Inject constructor(
 
     private val fileListSerializer = ListSerializer(FileInfoDto.serializer())
 
+    /**
+     * Creates a folder. The documented result is the new encoded path (a bare
+     * string), but per the v16 lesson nothing is assumed: callers build their own
+     * entry from parent + name, so only the envelope's success matters here.
+     */
+    suspend fun mkdir(base: String, sessionToken: String, parentB64: String, name: String): FbxResult<Unit> =
+        envelopeNullable<JsonElement>("$base/fs/mkdir/") { url ->
+            http.post(url) {
+                header(X_FBX_APP_AUTH, sessionToken)
+                contentType(ContentType.Application.Json)
+                setBody(json.encodeToString(MkdirRequestDto.serializer(), MkdirRequestDto(parentB64, name)))
+            }
+        }.map { }
+
+    /** Renames in place; `dst` is the new name, not a path. */
+    suspend fun rename(base: String, sessionToken: String, pathB64: String, newName: String): FbxResult<Unit> =
+        envelopeNullable<JsonElement>("$base/fs/rename/") { url ->
+            http.post(url) {
+                header(X_FBX_APP_AUTH, sessionToken)
+                contentType(ContentType.Application.Json)
+                setBody(json.encodeToString(RenameRequestDto.serializer(), RenameRequestDto(pathB64, newName)))
+            }
+        }.map { }
+
+    /** Starts an async move; returns the task to poll via [fsTask]. */
+    suspend fun mv(base: String, sessionToken: String, filesB64: List<String>, destB64: String): FbxResult<FsTaskDto> =
+        envelope("$base/fs/mv/") { url ->
+            http.post(url) {
+                header(X_FBX_APP_AUTH, sessionToken)
+                contentType(ContentType.Application.Json)
+                setBody(
+                    json.encodeToString(
+                        FileOperationRequestDto.serializer(),
+                        FileOperationRequestDto(files = filesB64, dst = destB64),
+                    ),
+                )
+            }
+        }
+
+    /** Starts an async permanent deletion; returns the task to poll via [fsTask]. */
+    suspend fun rm(base: String, sessionToken: String, filesB64: List<String>): FbxResult<FsTaskDto> =
+        envelope("$base/fs/rm/") { url ->
+            http.post(url) {
+                header(X_FBX_APP_AUTH, sessionToken)
+                contentType(ContentType.Application.Json)
+                setBody(
+                    json.encodeToString(
+                        FileOperationRequestDto.serializer(),
+                        FileOperationRequestDto(files = filesB64),
+                    ),
+                )
+            }
+        }
+
+    suspend fun fsTask(base: String, sessionToken: String, taskId: Int): FbxResult<FsTaskDto> =
+        envelope("$base/fs/tasks/$taskId") { url ->
+            http.get(url) { header(X_FBX_APP_AUTH, sessionToken) }
+        }
+
     /** Raw file download via /dl/; the box honours Range requests on this endpoint. */
     suspend fun download(
         base: String,

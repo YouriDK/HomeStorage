@@ -11,6 +11,8 @@ import androidx.room.PrimaryKey
 data class TrashItemEntity(
     /** Current location inside /.trash (encoded path — also the identity). */
     @PrimaryKey val trashPathB64: String,
+    /** Which provider owns the file ("fake" or "freebox") — the two never mix. */
+    val providerId: String,
     /** Folder (display path) the entry lived in, e.g. "/Photos/Family". */
     val originalParentPath: String,
     val name: String,

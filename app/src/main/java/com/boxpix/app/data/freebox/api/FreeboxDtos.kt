@@ -76,6 +76,41 @@ data class SessionResultDto(
     val permissions: Map<String, Boolean> = emptyMap(),
 )
 
+@Serializable
+data class MkdirRequestDto(
+    val parent: String,
+    val dirname: String,
+)
+
+@Serializable
+data class RenameRequestDto(
+    val src: String,
+    val dst: String,
+)
+
+@Serializable
+data class FileOperationRequestDto(
+    val files: List<String>,
+    val dst: String? = null,
+)
+
+/**
+ * Async filesystem task (fs/mv, fs/rm return one). Field presence varies by
+ * firmware; only id/state/error are relied upon.
+ */
+@Serializable
+data class FsTaskDto(
+    val id: Int,
+    val state: String? = null,
+    val error: String? = null,
+) {
+    val isDone: Boolean get() = state == "done"
+    val isFailed: Boolean get() = state == "failed"
+
+    /** The API reports error "none" on healthy tasks. */
+    val errorCode: String? get() = error?.takeIf { it.isNotEmpty() && it != "none" }
+}
+
 /** Entry of a fs/ls listing. `path` and `target` are base64-encoded by the API. */
 @Serializable
 data class FileInfoDto(
