@@ -82,6 +82,20 @@ class FreeboxProvider @Inject constructor(
 
     override suspend fun move(pathsB64: List<String>, destParentB64: String): FbxResult<Unit> =
         sessions.withSession { base, token ->
+            // fs/mv cannot report conflicts (its modes all resolve them silently),
+            // but the StorageProvider contract promises a conflict error — so the
+            // destination is checked first. mode=skip keeps races non-destructive.
+            val destNames = when (val listed = api.ls(base, token, destParentB64)) {
+                is FbxResult.Ok -> listed.value.map { it.name }.toSet()
+                is FbxResult.Err -> return@withSession listed
+            }
+            val conflict = pathsB64.any { encoded ->
+                val name = runCatching { PathCodec.decode(encoded) }.getOrDefault("").substringAfterLast('/')
+                name.isNotEmpty() && name in destNames
+            }
+            if (conflict) {
+                return@withSession FbxResult.Err(FreeboxError.Api(StorageProvider.ERROR_CONFLICT))
+            }
             when (val started = api.mv(base, token, pathsB64, destParentB64)) {
                 is FbxResult.Ok -> awaitTask(base, token, started.value)
                 is FbxResult.Err -> started

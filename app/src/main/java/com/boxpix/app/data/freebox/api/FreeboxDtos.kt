@@ -92,6 +92,8 @@ data class RenameRequestDto(
 data class FileOperationRequestDto(
     val files: List<String>,
     val dst: String? = null,
+    /** Required by v16 fs/mv (invalid_conflict_mode otherwise); unused by fs/rm. */
+    val mode: String? = null,
 )
 
 /**

@@ -249,6 +249,8 @@ class FreeboxApiClientTest {
             val body = String(request.body.toByteArray())
             assertTrue(body.contains("\"files\":[\"YQ==\",\"Yg==\"]"))
             assertTrue(body.contains("\"dst\":\"ZGVzdA==\""))
+            // Required by v16 (invalid_conflict_mode otherwise); skip never overwrites.
+            assertTrue(body.contains("\"mode\":\"skip\""))
             respondJson("""{"success":true,"result":{"id":33,"state":"running","error":"none","curr_bytes":0}}""")
         }
         val task = (api.mv("base", "token", listOf("YQ==", "Yg=="), "ZGVzdA==") as FbxResult.Ok).value

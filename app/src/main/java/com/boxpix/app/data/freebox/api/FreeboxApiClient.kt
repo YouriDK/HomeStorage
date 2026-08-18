@@ -168,8 +168,18 @@ class FreeboxApiClient @Inject constructor(
             }
         }.map { }
 
-    /** Starts an async move; returns the task to poll via [fsTask]. */
-    suspend fun mv(base: String, sessionToken: String, filesB64: List<String>, destB64: String): FbxResult<FsTaskDto> =
+    /**
+     * Starts an async move; returns the task to poll via [fsTask]. The box has no
+     * "fail on conflict" mode, so callers must detect conflicts beforehand; "skip"
+     * guarantees a race can never overwrite existing data.
+     */
+    suspend fun mv(
+        base: String,
+        sessionToken: String,
+        filesB64: List<String>,
+        destB64: String,
+        mode: String = "skip",
+    ): FbxResult<FsTaskDto> =
         envelope("$base/fs/mv/") { url ->
             http.post(url) {
                 header(X_FBX_APP_AUTH, sessionToken)
@@ -177,7 +187,7 @@ class FreeboxApiClient @Inject constructor(
                 setBody(
                     json.encodeToString(
                         FileOperationRequestDto.serializer(),
-                        FileOperationRequestDto(files = filesB64, dst = destB64),
+                        FileOperationRequestDto(files = filesB64, dst = destB64, mode = mode),
                     ),
                 )
             }
