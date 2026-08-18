@@ -110,6 +110,11 @@ class FreeboxProvider @Inject constructor(
             }
         }
 
+    override suspend fun upload(parentB64: String, name: String, bytes: ByteArray): FbxResult<Unit> =
+        sessions.withSession { base, token ->
+            api.upload(base, token, parentB64, name, bytes)
+        }
+
     /** fs/mv and fs/rm are asynchronous on the box: poll their task until it settles. */
     private suspend fun awaitTask(base: String, token: String, initial: FsTaskDto): FbxResult<Unit> {
         var task = initial

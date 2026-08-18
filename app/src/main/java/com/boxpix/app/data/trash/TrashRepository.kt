@@ -5,8 +5,10 @@ import com.boxpix.app.core.FreeboxError
 import com.boxpix.app.data.db.TrashDao
 import com.boxpix.app.data.db.TrashItemEntity
 import com.boxpix.app.data.freebox.api.PathCodec
+import com.boxpix.app.data.storage.MirrorPaths
 import com.boxpix.app.data.storage.StorageEntry
 import com.boxpix.app.data.storage.StorageEnv
+import com.boxpix.app.data.storage.StorageFolders
 import com.boxpix.app.data.storage.StorageProvider
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -37,6 +39,7 @@ class TrashRepository @Inject constructor(
     private val dao: TrashDao,
     private val clock: Clock,
     private val env: StorageEnv,
+    private val folders: StorageFolders,
 ) {
 
     val items: Flow<List<TrashItemEntity>> =
@@ -49,9 +52,13 @@ class TrashRepository @Inject constructor(
         val providerId = currentProviderId()
         for (entry in entries) {
             val originalParent = parentOf(entry.displayPath)
-            val trashDir = mirrorDirFor(originalParent, provider.capabilities.canCreateAtRoot)
+            val trashDir = MirrorPaths.mirrorDirFor(
+                originalParent,
+                MirrorPaths.TRASH_DIR,
+                provider.capabilities.canCreateAtRoot,
+            )
 
-            ensureFolder(trashDir)?.let { return FbxResult.Err(it) }
+            folders.ensure(trashDir)?.let { return FbxResult.Err(it) }
 
             val moved = moveAvoidingConflict(entry.pathB64, entry.name, trashDir)
             val finalName = when (moved) {
@@ -75,7 +82,7 @@ class TrashRepository @Inject constructor(
     }
 
     suspend fun restore(item: TrashItemEntity): FbxResult<Unit> {
-        ensureFolder(item.originalParentPath)?.let { return FbxResult.Err(it) }
+        folders.ensure(item.originalParentPath)?.let { return FbxResult.Err(it) }
 
         val moved = moveAvoidingConflict(item.trashPathB64, item.name, item.originalParentPath)
         if (moved is FbxResult.Err) return moved
@@ -134,35 +141,6 @@ class TrashRepository @Inject constructor(
         }
     }
 
-    /**
-     * Creates every missing segment of [displayPath]. When the provider's root
-     * is not writable (real box), the first segment is the disk itself: it always
-     * exists and cannot be created, so it seeds the walk instead of being mkdir'ed.
-     */
-    private suspend fun ensureFolder(displayPath: String): FreeboxError? {
-        val segments = displayPath.split('/').filter { it.isNotEmpty() }
-        if (segments.isEmpty()) return null
-
-        val rooted = displayPath.startsWith("/")
-        var parent: String
-        var startIndex: Int
-        if (provider.capabilities.canCreateAtRoot) {
-            parent = "/"
-            startIndex = 0
-        } else {
-            parent = (if (rooted) "/" else "") + segments.first()
-            startIndex = 1
-        }
-
-        for (i in startIndex until segments.size) {
-            val segment = segments[i]
-            val made = provider.mkdir(PathCodec.encode(parent), segment)
-            if (made is FbxResult.Err && !made.error.isConflict()) return made.error
-            parent = if (parent == "/") "/$segment" else "$parent/$segment"
-        }
-        return null
-    }
-
     private suspend fun currentProviderId(): String = providerId(env.useFakeProvider.first())
 
     private fun providerId(useFake: Boolean): String =
@@ -194,32 +172,9 @@ class TrashRepository @Inject constructor(
     }
 
     companion object {
-        const val TRASH_DIR_NAME = ".trash"
         const val AUTO_PURGE_DAYS = 30L
         const val PROVIDER_FAKE = "fake"
         const val PROVIDER_FREEBOX = "freebox"
         private const val MAX_CONFLICT_ATTEMPTS = 10
-
-        /**
-         * Mirror directory for a given original parent folder (see class doc).
-         * The leading-slash convention of the input is preserved: v16 real paths
-         * are rooted ("/Archive 1/…"), the v4-era docs show them bare.
-         */
-        internal fun mirrorDirFor(originalParent: String, canCreateAtRoot: Boolean): String {
-            val rooted = originalParent.startsWith("/")
-            val segments = originalParent.split('/').filter { it.isNotEmpty() }
-            if (canCreateAtRoot) {
-                val rest = segments.joinToString("/")
-                return if (rest.isEmpty()) "/$TRASH_DIR_NAME" else "/$TRASH_DIR_NAME/$rest"
-            }
-            val disk = segments.firstOrNull() ?: return "/$TRASH_DIR_NAME"
-            val prefix = if (rooted) "/" else ""
-            val rest = segments.drop(1).joinToString("/")
-            return if (rest.isEmpty()) {
-                "$prefix$disk/$TRASH_DIR_NAME"
-            } else {
-                "$prefix$disk/$TRASH_DIR_NAME/$rest"
-            }
-        }
     }
 }

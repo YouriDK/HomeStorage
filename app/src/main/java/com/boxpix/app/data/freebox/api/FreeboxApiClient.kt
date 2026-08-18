@@ -7,6 +7,8 @@ import com.boxpix.app.core.FreeboxError
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.plugins.timeout
+import io.ktor.client.plugins.websocket.DefaultClientWebSocketSession
+import io.ktor.client.plugins.websocket.webSocket
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.parameter
@@ -18,6 +20,8 @@ import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.contentType
 import io.ktor.http.isSuccess
+import io.ktor.websocket.Frame
+import io.ktor.websocket.readText
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.builtins.ListSerializer
@@ -26,6 +30,12 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -213,6 +223,85 @@ class FreeboxApiClient @Inject constructor(
             http.get(url) { header(X_FBX_APP_AUTH, sessionToken) }
         }
 
+    /**
+     * Uploads [bytes] as [filename] into [dirB64] over the WebSocket upload API
+     * (the HTTP upload is deprecated since v4): upload_start JSON → binary
+     * frames (each acked) → upload_finalize. force=overwrite so regenerating a
+     * sidecar replaces the stale one.
+     */
+    suspend fun upload(
+        base: String,
+        sessionToken: String,
+        dirB64: String,
+        filename: String,
+        bytes: ByteArray,
+    ): FbxResult<Unit> {
+        val wsUrl = base.replaceFirst("http", "ws") + "/ws/upload"
+        return try {
+            var outcome: FbxResult<Unit> = FbxResult.Err(FreeboxError.Api("upload_incomplete"))
+            http.webSocket(urlString = wsUrl, request = { header(X_FBX_APP_AUTH, sessionToken) }) {
+                val start = buildJsonObject {
+                    put("action", "upload_start")
+                    put("request_id", 1)
+                    put("size", bytes.size)
+                    put("dirname", dirB64)
+                    put("filename", filename)
+                    put("force", "overwrite")
+                }
+                send(Frame.Text(start.toString()))
+                awaitUploadAck("upload_start")?.let {
+                    outcome = FbxResult.Err(it)
+                    return@webSocket
+                }
+
+                var offset = 0
+                while (offset < bytes.size) {
+                    val end = minOf(offset + UPLOAD_CHUNK_BYTES, bytes.size)
+                    send(Frame.Binary(true, bytes.copyOfRange(offset, end)))
+                    offset = end
+                    awaitUploadAck("upload_data")?.let {
+                        outcome = FbxResult.Err(it)
+                        return@webSocket
+                    }
+                }
+
+                send(Frame.Text("""{"action":"upload_finalize","request_id":1}"""))
+                awaitUploadAck("upload_finalize")?.let {
+                    outcome = FbxResult.Err(it)
+                    return@webSocket
+                }
+                outcome = FbxResult.Ok(Unit)
+            }
+            outcome
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            logTransportFailure(wsUrl, e)
+            FbxResult.Err(FreeboxError.Network(e))
+        }
+    }
+
+    /** Returns null when the matching ack reports success, the error otherwise. */
+    private suspend fun DefaultClientWebSocketSession.awaitUploadAck(action: String): FreeboxError? {
+        while (true) {
+            val frame = incoming.receive()
+            if (frame !is Frame.Text) continue
+            val ack = try {
+                json.parseToJsonElement(frame.readText()).jsonObject
+            } catch (e: Exception) {
+                return FreeboxError.Network(e)
+            }
+            val ackAction = ack["action"]?.jsonPrimitive?.contentOrNull
+            if (ackAction != null && ackAction != action) continue
+            val success = ack["success"]?.jsonPrimitive?.booleanOrNull ?: true
+            return if (success) {
+                null
+            } else {
+                FreeboxError.Api(ack["error_code"]?.jsonPrimitive?.contentOrNull ?: "upload_failed")
+            }
+        }
+    }
+
     /** Raw file download via /dl/; the box honours Range requests on this endpoint. */
     suspend fun download(
         base: String,
@@ -303,14 +392,20 @@ class FreeboxApiClient @Inject constructor(
     }
 
     private fun logHttpFailure(url: String, status: Int, errorCode: String?) {
-        if (BuildConfig.DEBUG) {
-            Log.e(TAG, "FAIL $url -> HTTP $status${errorCode?.let { " error_code=$it" }.orEmpty()}")
+        if (!BuildConfig.DEBUG) return
+        val message = "FAIL $url -> HTTP $status${errorCode?.let { " error_code=$it" }.orEmpty()}"
+        if (errorCode == "destination_conflict") {
+            // Usually benign: mkdir -p chains and conflict probes expect these.
+            Log.i(TAG, message)
+        } else {
+            Log.e(TAG, message)
         }
     }
 
     companion object {
         const val X_FBX_APP_AUTH = "X-Fbx-App-Auth"
         const val DISCOVERY_TIMEOUT_MS = 2_500L
+        private const val UPLOAD_CHUNK_BYTES = 512 * 1024
         private const val TAG = "BoxpixHttp"
     }
 }

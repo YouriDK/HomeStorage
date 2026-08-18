@@ -21,6 +21,8 @@ import kotlin.random.Random
 class FakeStorageProvider(
     private val config: FakeConfig = FakeConfig(),
     private val seed: Int = 42,
+    /** Null (JVM tests): image downloads fall back to filler bytes. */
+    private val synthesizer: FakeImageSynthesizer? = null,
 ) : StorageProvider, FakeControls {
 
     data class FakeConfig(
@@ -63,11 +65,41 @@ class FakeStorageProvider(
             val (_, node) = resolve(displayPath(pathB64))
                 ?: return@withLock err(StorageProvider.ERROR_NOT_FOUND)
             val file = node as? FileNode ?: return@withLock err("path_is_directory")
-            // Deterministic filler bytes, capped: nothing decodes these until the
-            // M3 thumbnail pipeline replaces them with generated images.
-            val length = (range?.let { it.last - it.first + 1 } ?: file.sizeBytes)
-                .coerceAtMost(262_144L).toInt()
-            FbxResult.Ok(ByteArray(length) { (file.name.hashCode() + it).toByte() })
+            val bytes = file.content
+                ?: if (file.mimeType.startsWith("image/") && synthesizer != null) {
+                    synthesizer.jpegWithExif(file.name.hashCode(), file.takenAtEpochSeconds)
+                } else {
+                    // Videos and JVM tests: deterministic filler bytes, capped.
+                    val length = file.sizeBytes.coerceAtMost(262_144L).toInt()
+                    ByteArray(length) { (file.name.hashCode() + it).toByte() }
+                }
+            val sliced = if (range == null) {
+                bytes
+            } else {
+                val from = range.first.coerceIn(0, bytes.size.toLong()).toInt()
+                val to = (range.last + 1).coerceIn(from.toLong(), bytes.size.toLong()).toInt()
+                bytes.copyOfRange(from, to)
+            }
+            FbxResult.Ok(sliced)
+        }
+    }
+
+    override suspend fun upload(parentB64: String, name: String, bytes: ByteArray): FbxResult<Unit> {
+        simulateLatency()
+        return mutex.withLock {
+            val parentPath = displayPath(parentB64)
+            val parent = resolveFolder(parentPath)
+                ?: return@withLock err(StorageProvider.ERROR_NOT_FOUND)
+            parent.children.removeAll { it is FileNode && it.name == name } // overwrite semantics
+            parent.children += FileNode(
+                name = name,
+                mtime = nowSeconds(),
+                sizeBytes = bytes.size.toLong(),
+                takenAtEpochSeconds = nowSeconds(),
+                mimeType = mimeTypeFor(name),
+                content = bytes,
+            )
+            FbxResult.Ok(Unit)
         }
     }
 
@@ -223,6 +255,15 @@ class FakeStorageProvider(
     }
 
     private fun nowSeconds() = System.currentTimeMillis() / 1000
+
+    private fun mimeTypeFor(name: String): String = when (name.substringAfterLast('.').lowercase()) {
+        "webp" -> "image/webp"
+        "jpg", "jpeg" -> "image/jpeg"
+        "png" -> "image/png"
+        "heic" -> "image/heic"
+        "mp4" -> "video/mp4"
+        else -> "application/octet-stream"
+    }
 
     private fun err(code: String) = FbxResult.Err(FreeboxError.Api(code))
 }

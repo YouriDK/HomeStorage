@@ -1,5 +1,9 @@
 package com.boxpix.app.di
 
+import com.boxpix.app.data.media.AndroidMediaProcessor
+import com.boxpix.app.data.media.MediaProcessor
+import com.boxpix.app.data.storage.DefaultRootLocator
+import com.boxpix.app.data.storage.RootLocator
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -22,4 +26,12 @@ object AppModule {
     @Provides
     @Singleton
     fun clock(): Clock = Clock.systemDefaultZone()
+
+    @Provides
+    @Singleton
+    fun mediaProcessor(): MediaProcessor = AndroidMediaProcessor()
+
+    @Provides
+    @Singleton
+    fun rootLocator(impl: DefaultRootLocator): RootLocator = impl
 }

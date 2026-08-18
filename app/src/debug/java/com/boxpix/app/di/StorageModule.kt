@@ -1,5 +1,6 @@
 package com.boxpix.app.di
 
+import com.boxpix.app.data.fake.AndroidFakeImageSynthesizer
 import com.boxpix.app.data.fake.FakeStorageProvider
 import com.boxpix.app.data.freebox.FreeboxProvider
 import com.boxpix.app.data.prefs.UiPrefsStore
@@ -23,7 +24,8 @@ object StorageModule {
 
     @Provides
     @Singleton
-    fun fakeProvider(): FakeStorageProvider = FakeStorageProvider()
+    fun fakeProvider(): FakeStorageProvider =
+        FakeStorageProvider(synthesizer = AndroidFakeImageSynthesizer())
 
     @Provides
     @Singleton

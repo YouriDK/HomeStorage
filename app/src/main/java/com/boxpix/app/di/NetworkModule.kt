@@ -12,6 +12,7 @@ import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.logging.LogLevel
 import io.ktor.client.plugins.logging.Logger
 import io.ktor.client.plugins.logging.Logging
+import io.ktor.client.plugins.websocket.WebSockets
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.Json
 import javax.inject.Singleton
@@ -32,6 +33,7 @@ object NetworkModule {
     @Singleton
     fun httpClient(): HttpClient = HttpClient(OkHttp) {
         expectSuccess = false
+        install(WebSockets) // fs upload is WebSocket-only since API v4
         install(HttpTimeout) {
             // Generous read timeout: the first request after disk sleep takes 5-10 s.
             requestTimeoutMillis = 30_000

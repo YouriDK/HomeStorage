@@ -5,7 +5,9 @@ import com.boxpix.app.data.db.TrashDao
 import com.boxpix.app.data.db.TrashItemEntity
 import com.boxpix.app.data.fake.FakeStorageProvider
 import com.boxpix.app.data.freebox.api.PathCodec
+import com.boxpix.app.data.storage.MirrorPaths
 import com.boxpix.app.data.storage.StorageEnv
+import com.boxpix.app.data.storage.StorageFolders
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
@@ -57,7 +59,7 @@ class TrashRepositoryTest {
     private val dao = FakeTrashDao()
     private val clock = TestClock(Instant.ofEpochSecond(1_755_000_000))
     private val env = StorageEnv(useFakeProvider = flowOf(true), fakeControls = provider)
-    private val repo = TrashRepository(provider, dao, clock, env)
+    private val repo = TrashRepository(provider, dao, clock, env, StorageFolders(provider))
 
     private val fake = TrashRepository.PROVIDER_FAKE
 
@@ -71,8 +73,11 @@ class TrashRepositoryTest {
 
     @Test
     fun `mirror sits at the tree root when the root is writable`() {
-        assertEquals("/.trash/Photos/Family", TrashRepository.mirrorDirFor("/Photos/Family", canCreateAtRoot = true))
-        assertEquals("/.trash", TrashRepository.mirrorDirFor("/", canCreateAtRoot = true))
+        assertEquals(
+            "/.trash/Photos/Family",
+            MirrorPaths.mirrorDirFor("/Photos/Family", MirrorPaths.TRASH_DIR, canCreateAtRoot = true),
+        )
+        assertEquals("/.trash", MirrorPaths.mirrorDirFor("/", MirrorPaths.TRASH_DIR, canCreateAtRoot = true))
     }
 
     @Test
@@ -80,16 +85,28 @@ class TrashRepositoryTest {
         // v16 rooted real paths (observed on the Pop)
         assertEquals(
             "/Archive 1/.trash/Windows_temp",
-            TrashRepository.mirrorDirFor("/Archive 1/Windows_temp", canCreateAtRoot = false),
+            MirrorPaths.mirrorDirFor("/Archive 1/Windows_temp", MirrorPaths.TRASH_DIR, canCreateAtRoot = false),
         )
         assertEquals(
             "/Archive 1/.trash",
-            TrashRepository.mirrorDirFor("/Archive 1", canCreateAtRoot = false),
+            MirrorPaths.mirrorDirFor("/Archive 1", MirrorPaths.TRASH_DIR, canCreateAtRoot = false),
         )
         // v4-era doc style without the leading slash
         assertEquals(
             "Disque 1/.trash/Photos/Trips",
-            TrashRepository.mirrorDirFor("Disque 1/Photos/Trips", canCreateAtRoot = false),
+            MirrorPaths.mirrorDirFor("Disque 1/Photos/Trips", MirrorPaths.TRASH_DIR, canCreateAtRoot = false),
+        )
+    }
+
+    @Test
+    fun `thumb sidecar path mirrors the media path with a webp suffix`() {
+        assertEquals(
+            "/Archive 1/.thumbs/Photos/IMG_1.jpg.webp",
+            MirrorPaths.thumbPathFor("/Archive 1/Photos/IMG_1.jpg", canCreateAtRoot = false),
+        )
+        assertEquals(
+            "/.thumbs/Photos/Family/IMG_2.heic.webp",
+            MirrorPaths.thumbPathFor("/Photos/Family/IMG_2.heic", canCreateAtRoot = true),
         )
     }
 

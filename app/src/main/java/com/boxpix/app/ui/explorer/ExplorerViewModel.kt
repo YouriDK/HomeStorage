@@ -37,7 +37,7 @@ class ExplorerViewModel @Inject constructor(
 
     data class FolderRef(val pathB64: String, val displayPath: String, val name: String)
 
-    data class AlbumUi(val entry: StorageEntry, val mediaCount: Int, val coverKey: String?)
+    data class AlbumUi(val entry: StorageEntry, val mediaCount: Int, val cover: StorageEntry?)
 
     data class MoveState(
         val visible: Boolean = false,
@@ -304,7 +304,7 @@ class ExplorerViewModel @Inject constructor(
             async {
                 val children = provider.list(folder.pathB64).getOrNull().orEmpty()
                 val medias = children.filterNot { it.isDirectory }.sortedBy { it.name.lowercase() }
-                AlbumUi(folder, medias.size, medias.firstOrNull()?.pathB64)
+                AlbumUi(folder, medias.size, medias.firstOrNull { !it.isVideo() } ?: medias.firstOrNull())
             }
         }.awaitAll()
     }
@@ -324,6 +324,8 @@ class ExplorerViewModel @Inject constructor(
         val display = snapshot.rootDisplayPath.orEmpty()
         return FolderRef(pathB64, display, display.substringAfterLast('/').ifEmpty { "Root" })
     }
+
+    private fun StorageEntry.isVideo(): Boolean = mimeType?.startsWith("video/") == true
 
     private fun comparator(order: SortOrder): Comparator<StorageEntry> = when (order) {
         SortOrder.NAME -> compareBy { it.name.lowercase() }

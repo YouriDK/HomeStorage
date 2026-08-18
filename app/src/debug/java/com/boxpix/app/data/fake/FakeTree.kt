@@ -17,10 +17,12 @@ class FileNode(
     override var name: String,
     override var mtime: Long,
     val sizeBytes: Long,
-    /** EXIF capture date — unused until M3, seeded now so the timeline has data. */
+    /** EXIF capture date — embedded in the synthesized JPEG bytes since M3. */
     val takenAtEpochSeconds: Long,
     val mimeType: String,
     val durationSeconds: Long? = null,
+    /** Real bytes for uploaded files (thumb sidecars); synthesized otherwise. */
+    var content: ByteArray? = null,
 ) : FakeNode
 
 /**

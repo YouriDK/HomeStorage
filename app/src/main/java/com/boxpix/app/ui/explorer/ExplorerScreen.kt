@@ -69,8 +69,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.compose.ui.graphics.painter.ColorPainter
+import androidx.compose.ui.layout.ContentScale
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil.compose.AsyncImage
 import com.boxpix.app.R
 import com.boxpix.app.data.prefs.SortOrder
 import com.boxpix.app.data.storage.StorageEntry
@@ -78,6 +81,7 @@ import com.boxpix.app.ui.common.EmptyFolderView
 import com.boxpix.app.ui.common.ErrorView
 import com.boxpix.app.ui.common.GridSkeleton
 import com.boxpix.app.ui.common.PlaceholderTones
+import com.boxpix.app.ui.common.ThumbRequest
 import com.boxpix.app.ui.common.WakingDiskView
 import com.boxpix.app.ui.common.formatDuration
 import com.boxpix.app.ui.common.message
@@ -476,7 +480,7 @@ private fun AlbumCell(
 ) {
     val colors = boxpixColors
     val darkTheme = isSystemInDarkTheme()
-    val tone = PlaceholderTones.tone(album.coverKey ?: album.entry.pathB64, darkTheme)
+    val tone = PlaceholderTones.tone(album.cover?.pathB64 ?: album.entry.pathB64, darkTheme)
     Box(
         modifier = Modifier
             .aspectRatio(1f)
@@ -495,6 +499,18 @@ private fun AlbumCell(
                 onLongClick = { viewModel.startSelection(album.entry.pathB64) },
             ),
     ) {
+        album.cover
+            ?.takeIf { it.mimeType?.startsWith("image/") == true }
+            ?.let { cover ->
+                AsyncImage(
+                    model = ThumbRequest(cover.pathB64, cover.displayPath, cover.modifiedEpochSeconds),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    placeholder = ColorPainter(tone),
+                    error = ColorPainter(tone),
+                    modifier = Modifier.matchParentSize(),
+                )
+            }
         Column(
             modifier = Modifier
                 .align(Alignment.BottomStart)
@@ -633,6 +649,16 @@ private fun MediaCell(
                 onLongClick = { viewModel.startSelection(entry.pathB64) },
             ),
     ) {
+        if (!isVideo) {
+            AsyncImage(
+                model = ThumbRequest(entry.pathB64, entry.displayPath, entry.modifiedEpochSeconds),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                placeholder = ColorPainter(tone),
+                error = ColorPainter(tone),
+                modifier = Modifier.matchParentSize(),
+            )
+        }
         if (isVideo) {
             Row(
                 modifier = Modifier

@@ -3,7 +3,9 @@ package com.boxpix.app.di
 import android.content.Context
 import androidx.room.Room
 import com.boxpix.app.data.db.BoxpixDatabase
+import com.boxpix.app.data.db.MediaDao
 import com.boxpix.app.data.db.TrashDao
+import com.boxpix.app.data.db.WorkQueueDao
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -25,4 +27,10 @@ object DatabaseModule {
 
     @Provides
     fun trashDao(db: BoxpixDatabase): TrashDao = db.trashDao()
+
+    @Provides
+    fun mediaDao(db: BoxpixDatabase): MediaDao = db.mediaDao()
+
+    @Provides
+    fun workQueueDao(db: BoxpixDatabase): WorkQueueDao = db.workQueueDao()
 }

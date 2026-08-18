@@ -30,6 +30,9 @@ interface StorageProvider {
     /** Permanent deletion — only the trash layer is allowed to call this. */
     suspend fun delete(pathsB64: List<String>): FbxResult<Unit> = unsupported()
 
+    /** Writes [bytes] as [name] inside [parentB64], overwriting any existing file. */
+    suspend fun upload(parentB64: String, name: String, bytes: ByteArray): FbxResult<Unit> = unsupported()
+
     companion object {
         const val ERROR_NOT_SUPPORTED = "not_supported"
 

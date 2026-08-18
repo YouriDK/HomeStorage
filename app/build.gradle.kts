@@ -71,6 +71,10 @@ dependencies {
     implementation(libs.ktor.client.core)
     implementation(libs.ktor.client.okhttp)
     implementation(libs.ktor.client.logging)
+    implementation(libs.ktor.client.websockets)
+
+    implementation(libs.coil.compose)
+    implementation(libs.androidx.exifinterface)
 
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.coroutines.android)
