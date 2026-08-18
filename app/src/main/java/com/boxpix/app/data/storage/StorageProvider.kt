@@ -48,6 +48,12 @@ interface StorageProvider {
 
 data class StorageCapabilities(
     val supportsRangeRequests: Boolean,
+    /**
+     * Whether entries can be created directly at the tree's root. False on the
+     * Freebox: its root is virtual (it lists the disks), so app folders like
+     * .trash must live inside the first path segment (the disk).
+     */
+    val canCreateAtRoot: Boolean,
 )
 
 /** Provider-agnostic entry; paths keep the provider's opaque encoded form. */

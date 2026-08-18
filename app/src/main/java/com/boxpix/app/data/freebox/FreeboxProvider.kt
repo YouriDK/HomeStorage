@@ -20,7 +20,10 @@ class FreeboxProvider @Inject constructor(
     private val sessions: FreeboxSessionManager,
 ) : StorageProvider {
 
-    override val capabilities = StorageCapabilities(supportsRangeRequests = true)
+    override val capabilities = StorageCapabilities(
+        supportsRangeRequests = true,
+        canCreateAtRoot = false, // "/" is virtual: it lists the disks (access_denied otherwise)
+    )
 
     override suspend fun list(pathB64: String?, onlyFolders: Boolean): FbxResult<List<StorageEntry>> =
         sessions.withSession { base, token ->

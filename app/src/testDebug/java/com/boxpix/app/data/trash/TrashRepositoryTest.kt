@@ -70,11 +70,27 @@ class TrashRepositoryTest {
         (provider.list(b64("/Photos/Scans")) as FbxResult.Ok).value.first { !it.isDirectory }
 
     @Test
-    fun `mirror directory follows the tree root, rooted or disk-based`() {
-        assertEquals("/.trash/Photos/Family", TrashRepository.mirrorDirFor("/Photos/Family"))
-        assertEquals("/.trash", TrashRepository.mirrorDirFor("/"))
-        assertEquals("Disque 1/.trash/Photos/Trips", TrashRepository.mirrorDirFor("Disque 1/Photos/Trips"))
-        assertEquals("Disque 1/.trash", TrashRepository.mirrorDirFor("Disque 1"))
+    fun `mirror sits at the tree root when the root is writable`() {
+        assertEquals("/.trash/Photos/Family", TrashRepository.mirrorDirFor("/Photos/Family", canCreateAtRoot = true))
+        assertEquals("/.trash", TrashRepository.mirrorDirFor("/", canCreateAtRoot = true))
+    }
+
+    @Test
+    fun `mirror sits inside the disk when the root is virtual`() {
+        // v16 rooted real paths (observed on the Pop)
+        assertEquals(
+            "/Archive 1/.trash/Windows_temp",
+            TrashRepository.mirrorDirFor("/Archive 1/Windows_temp", canCreateAtRoot = false),
+        )
+        assertEquals(
+            "/Archive 1/.trash",
+            TrashRepository.mirrorDirFor("/Archive 1", canCreateAtRoot = false),
+        )
+        // v4-era doc style without the leading slash
+        assertEquals(
+            "Disque 1/.trash/Photos/Trips",
+            TrashRepository.mirrorDirFor("Disque 1/Photos/Trips", canCreateAtRoot = false),
+        )
     }
 
     @Test

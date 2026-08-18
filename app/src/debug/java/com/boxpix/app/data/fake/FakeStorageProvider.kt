@@ -38,7 +38,10 @@ class FakeStorageProvider(
 
     private val latencyRandom = Random(seed + 1)
 
-    override val capabilities = StorageCapabilities(supportsRangeRequests = true)
+    override val capabilities = StorageCapabilities(
+        supportsRangeRequests = true,
+        canCreateAtRoot = true, // the fake root plays the role of the disk root
+    )
 
     override suspend fun list(pathB64: String?, onlyFolders: Boolean): FbxResult<List<StorageEntry>> {
         simulateLatency()

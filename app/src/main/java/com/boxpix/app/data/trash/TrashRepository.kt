@@ -49,7 +49,7 @@ class TrashRepository @Inject constructor(
         val providerId = currentProviderId()
         for (entry in entries) {
             val originalParent = parentOf(entry.displayPath)
-            val trashDir = mirrorDirFor(originalParent)
+            val trashDir = mirrorDirFor(originalParent, provider.capabilities.canCreateAtRoot)
 
             ensureFolder(trashDir)?.let { return FbxResult.Err(it) }
 
@@ -135,20 +135,22 @@ class TrashRepository @Inject constructor(
     }
 
     /**
-     * Creates every missing segment of [displayPath]. For non-rooted (real box)
-     * paths the first segment is the disk itself: it always exists and cannot be
-     * created, so it seeds the walk instead of being mkdir'ed.
+     * Creates every missing segment of [displayPath]. When the provider's root
+     * is not writable (real box), the first segment is the disk itself: it always
+     * exists and cannot be created, so it seeds the walk instead of being mkdir'ed.
      */
     private suspend fun ensureFolder(displayPath: String): FreeboxError? {
         val segments = displayPath.split('/').filter { it.isNotEmpty() }
         if (segments.isEmpty()) return null
 
+        val rooted = displayPath.startsWith("/")
         var parent: String
-        var startIndex = 0
-        if (displayPath.startsWith("/")) {
+        var startIndex: Int
+        if (provider.capabilities.canCreateAtRoot) {
             parent = "/"
+            startIndex = 0
         } else {
-            parent = segments.first()
+            parent = (if (rooted) "/" else "") + segments.first()
             startIndex = 1
         }
 
@@ -198,14 +200,25 @@ class TrashRepository @Inject constructor(
         const val PROVIDER_FREEBOX = "freebox"
         private const val MAX_CONFLICT_ATTEMPTS = 10
 
-        /** Mirror directory for a given original parent folder (see class doc). */
-        internal fun mirrorDirFor(originalParent: String): String = when {
-            originalParent == "/" || originalParent.isEmpty() -> "/$TRASH_DIR_NAME"
-            originalParent.startsWith("/") -> "/$TRASH_DIR_NAME${originalParent.trimEnd('/')}"
-            else -> {
-                val disk = originalParent.substringBefore('/')
-                val rest = originalParent.substringAfter('/', "")
-                if (rest.isEmpty()) "$disk/$TRASH_DIR_NAME" else "$disk/$TRASH_DIR_NAME/$rest"
+        /**
+         * Mirror directory for a given original parent folder (see class doc).
+         * The leading-slash convention of the input is preserved: v16 real paths
+         * are rooted ("/Archive 1/…"), the v4-era docs show them bare.
+         */
+        internal fun mirrorDirFor(originalParent: String, canCreateAtRoot: Boolean): String {
+            val rooted = originalParent.startsWith("/")
+            val segments = originalParent.split('/').filter { it.isNotEmpty() }
+            if (canCreateAtRoot) {
+                val rest = segments.joinToString("/")
+                return if (rest.isEmpty()) "/$TRASH_DIR_NAME" else "/$TRASH_DIR_NAME/$rest"
+            }
+            val disk = segments.firstOrNull() ?: return "/$TRASH_DIR_NAME"
+            val prefix = if (rooted) "/" else ""
+            val rest = segments.drop(1).joinToString("/")
+            return if (rest.isEmpty()) {
+                "$prefix$disk/$TRASH_DIR_NAME"
+            } else {
+                "$prefix$disk/$TRASH_DIR_NAME/$rest"
             }
         }
     }
