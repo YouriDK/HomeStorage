@@ -14,3 +14,10 @@ keystore.properties
 
 # Real personal test photos for the XMP spike — never committed
 app/src/androidTest/assets/
+
+# AI context — spec, working notes, design handoff, agent config (local only)
+CLAUDE.md
+docs/
+design_handoff_boxpix/
+kickoff-m1.md
+.claude/
