@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import com.boxpix.app.data.db.SearchDao
 import com.boxpix.app.data.db.SearchQueryBuilder
 import com.boxpix.app.data.db.TagDao
+import com.boxpix.app.data.freebox.api.PathCodec
+import com.boxpix.app.data.storage.RootLocator
 import com.boxpix.app.data.storage.StorageEnv
 import com.boxpix.app.data.tags.TagRepository
 import com.boxpix.app.data.trash.TrashRepository
@@ -31,6 +33,7 @@ class SearchViewModel @Inject constructor(
     private val tagDao: TagDao,
     tagRepository: TagRepository,
     private val env: StorageEnv,
+    private val rootLocator: RootLocator,
     searchContext: SearchContext,
     private val viewerSession: ViewerSession,
 ) : ViewModel() {
@@ -38,6 +41,7 @@ class SearchViewModel @Inject constructor(
     data class UiState(
         val query: String = "",
         val selectedTagIds: Set<Long> = emptySet(),
+        val selectedTypes: Set<SearchQueryBuilder.TypeFilter> = emptySet(),
         val fromEpochSeconds: Long? = null,
         val toEpochSeconds: Long? = null,
         val folder: FolderRef? = null,
@@ -46,7 +50,7 @@ class SearchViewModel @Inject constructor(
     ) {
         val hasFilters: Boolean
             get() = query.isNotBlank() || selectedTagIds.isNotEmpty() ||
-                fromEpochSeconds != null || folder != null
+                selectedTypes.isNotEmpty() || fromEpochSeconds != null || folder != null
     }
 
     val allTags = tagRepository.tags
@@ -75,6 +79,15 @@ class SearchViewModel @Inject constructor(
         runSearch()
     }
 
+    fun toggleType(type: SearchQueryBuilder.TypeFilter) {
+        _state.update {
+            val types = it.selectedTypes.toMutableSet()
+            if (!types.remove(type)) types += type
+            it.copy(selectedTypes = types)
+        }
+        runSearch()
+    }
+
     fun setDateRange(fromEpochSeconds: Long?, toEpochSeconds: Long?) {
         _state.update { it.copy(fromEpochSeconds = fromEpochSeconds, toEpochSeconds = toEpochSeconds) }
         runSearch()
@@ -90,6 +103,7 @@ class SearchViewModel @Inject constructor(
             it.copy(
                 query = "",
                 selectedTagIds = emptySet(),
+                selectedTypes = emptySet(),
                 fromEpochSeconds = null,
                 toEpochSeconds = null,
                 folder = null,
@@ -113,17 +127,27 @@ class SearchViewModel @Inject constructor(
             } else {
                 TrashRepository.PROVIDER_FREEBOX
             }
+            // The index spans every disk ever browsed; a search is always scoped
+            // to the current one so a swap never surfaces the other disk's files.
+            val rootDisplayPath = rootLocator.rootPathB64()
+                ?.let { runCatching { PathCodec.decode(it) }.getOrNull() }
+            if (rootDisplayPath == null) {
+                _state.update { it.copy(results = emptyList(), searched = true) }
+                return@launch
+            }
             val tagPaths = current.selectedTagIds.takeIf { it.isNotEmpty() }?.let { ids ->
                 tagDao.pathsWithAllTags(providerId, ids.toList(), ids.size)
             }
             val rows = searchDao.search(
                 SearchQueryBuilder.build(
                     providerId = providerId,
+                    rootDisplayPath = rootDisplayPath,
                     nameContains = current.query.takeIf { it.isNotBlank() },
                     fromEpochSeconds = current.fromEpochSeconds,
                     toEpochSeconds = current.toEpochSeconds,
                     folderPrefix = current.folder?.displayPath,
                     pathsWithAllTags = tagPaths,
+                    types = current.selectedTypes,
                 ),
             )
             _state.update { it.copy(results = rows.map { row -> row.toMediaRef() }, searched = true) }
