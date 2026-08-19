@@ -45,6 +45,7 @@ class ReconcilerTest {
         rootLocator = { PathCodec.encode("/Photos") },
         syncStatus = SyncStatus(),
         clock = java.time.Clock.systemUTC(),
+        telemetry = WorkerTelemetry(java.time.Clock.systemUTC()),
     )
 
     private fun b64(path: String) = PathCodec.encode(path)

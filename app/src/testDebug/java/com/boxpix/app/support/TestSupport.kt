@@ -104,6 +104,23 @@ class InMemoryWorkQueueDao : WorkQueueDao {
             }
         }
 
+    override fun failedCountByType(providerId: String, type: String) =
+        store.map { map ->
+            map.values.count {
+                it.providerId == providerId && it.type == type && it.status == WorkQueueEntity.STATUS_FAILED
+            }
+        }
+
+    override suspend fun retryFailed(providerId: String) {
+        store.value = store.value.mapValues { (_, job) ->
+            if (job.providerId == providerId && job.status == WorkQueueEntity.STATUS_FAILED) {
+                job.copy(status = WorkQueueEntity.STATUS_PENDING, attempts = 0, lastError = null)
+            } else {
+                job
+            }
+        }
+    }
+
     override suspend fun deleteForPath(providerId: String, pathB64: String) {
         store.value = store.value.filterKeys { !(it.first == providerId && it.third == pathB64) }
     }

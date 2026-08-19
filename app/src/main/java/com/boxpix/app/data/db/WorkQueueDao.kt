@@ -32,6 +32,17 @@ interface WorkQueueDao {
     )
     fun pendingCountByType(providerId: String, type: String): Flow<Int>
 
+    @Query(
+        "SELECT COUNT(*) FROM work_queue WHERE providerId = :providerId AND type = :type AND status = 'FAILED'",
+    )
+    fun failedCountByType(providerId: String, type: String): Flow<Int>
+
+    @Query(
+        "UPDATE work_queue SET status = 'PENDING', attempts = 0, lastError = NULL " +
+            "WHERE providerId = :providerId AND status = 'FAILED'",
+    )
+    suspend fun retryFailed(providerId: String)
+
     @Query("DELETE FROM work_queue WHERE providerId = :providerId AND pathB64 = :pathB64")
     suspend fun deleteForPath(providerId: String, pathB64: String)
 }

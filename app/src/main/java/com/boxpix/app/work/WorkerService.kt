@@ -15,6 +15,7 @@ import com.boxpix.app.R
 import com.boxpix.app.data.media.Reconciler
 import com.boxpix.app.data.media.VideoThumbProcessor
 import com.boxpix.app.data.media.WorkerStatusFile
+import com.boxpix.app.data.media.WorkerTelemetry
 import com.boxpix.app.data.media.XmpQueueProcessor
 import com.boxpix.app.data.net.NetworkStatus
 import com.boxpix.app.data.trash.TrashRepository
@@ -24,7 +25,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -50,6 +50,8 @@ class WorkerService : Service() {
 
     @Inject lateinit var network: NetworkStatus
 
+    @Inject lateinit var telemetry: WorkerTelemetry
+
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var loop: Job? = null
     private var cycles = 0
@@ -60,33 +62,50 @@ class WorkerService : Service() {
         createChannel()
         startForeground(NOTIFICATION_ID, notification(getString(R.string.worker_notif_starting)))
         if (loop == null) {
+            telemetry.serviceStarted()
             loop = serviceScope.launch { runLoop() }
         }
         return START_STICKY
     }
 
     override fun onDestroy() {
+        telemetry.serviceStopped()
         serviceScope.cancel()
         super.onDestroy()
     }
 
     private suspend fun runLoop() {
         while (serviceScope.isActive) {
-            if (isCharging() && network.isUnmetered()) {
+            // A forced resync bypasses pause and charger — never a metered network.
+            val forced = telemetry.consumeForcedResync()
+            val canRun = network.isUnmetered() &&
+                (forced || (!telemetry.paused.value && isCharging()))
+            if (canRun) {
                 notify(getString(R.string.worker_notif_working))
+                telemetry.cycleStarted()
                 runCatching {
                     reconciler.runPass(maxFolders = Int.MAX_VALUE, processLimit = HEAVY_LIMIT)
+                    telemetry.passDone(WorkerTelemetry.PASS_RECONCILE)
                     videoThumbs.process(HEAVY_LIMIT)
+                    telemetry.passDone(WorkerTelemetry.PASS_VIDEO_THUMBS)
                     xmpProcessor.process(HEAVY_LIMIT)
+                    telemetry.passDone(WorkerTelemetry.PASS_XMP)
                     trashRepository.purgeOlderThan()
+                    telemetry.passDone(WorkerTelemetry.PASS_PURGE)
                     cycles++
                     statusFile.write(cycles)
                 }
+                telemetry.cycleEnded(cycles)
                 notify(getString(R.string.worker_notif_idle, cycles))
-                delay(CYCLE_INTERVAL_MS)
+                telemetry.awaitWake(CYCLE_INTERVAL_MS)
             } else {
-                notify(getString(R.string.worker_notif_waiting))
-                delay(WAIT_INTERVAL_MS)
+                notify(
+                    getString(
+                        if (telemetry.paused.value) R.string.worker_notif_paused
+                        else R.string.worker_notif_waiting,
+                    ),
+                )
+                telemetry.awaitWake(WAIT_INTERVAL_MS)
             }
         }
     }

@@ -34,6 +34,7 @@ class Reconciler @Inject constructor(
     private val rootLocator: RootLocator,
     private val syncStatus: SyncStatus,
     private val clock: java.time.Clock,
+    private val telemetry: WorkerTelemetry,
 ) {
 
     private val passMutex = Mutex()
@@ -131,11 +132,22 @@ class Reconciler @Inject constructor(
     private suspend fun processQueue(providerId: String, limit: Int): Int {
         if (limit <= 0) return 0
         val jobs = queueDao.pending(providerId, WorkQueueEntity.TYPE_THUMB, limit)
-        jobs.forEach { job ->
+        jobs.forEachIndexed { index, job ->
+            telemetry.jobStarted(
+                WorkQueueEntity.TYPE_THUMB,
+                job.displayPath.substringAfterLast('/'),
+                index + 1,
+                jobs.size,
+            )
             val thumb = thumbnails.generate(job.displayPath, job.pathB64)
             val updated = if (thumb != null) {
                 job.copy(status = WorkQueueEntity.STATUS_DONE, lastError = null)
             } else {
+                telemetry.errorLogged(
+                    WorkQueueEntity.TYPE_THUMB,
+                    job.displayPath.substringAfterLast('/'),
+                    "generation_failed",
+                )
                 val attempts = job.attempts + 1
                 job.copy(
                     attempts = attempts,
@@ -149,6 +161,7 @@ class Reconciler @Inject constructor(
             }
             queueDao.upsert(updated)
         }
+        telemetry.jobsFinished()
         return jobs.size
     }
 

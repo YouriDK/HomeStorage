@@ -38,6 +38,7 @@ class VideoThumbProcessorTest {
         extractor = extractor,
         streaming = { "http://base" to "token" },
         env = StorageEnv(useFakeProvider = flowOf(fakeMode), fakeControls = provider),
+        telemetry = WorkerTelemetry(java.time.Clock.systemUTC()),
     )
 
     private suspend fun seedJob(): Pair<String, String> {

@@ -36,6 +36,7 @@ class VideoThumbProcessor @Inject constructor(
     private val extractor: VideoFrameExtractor,
     private val streaming: StreamingAccess,
     private val env: StorageEnv,
+    private val telemetry: WorkerTelemetry,
 ) {
 
     private val mutex = Mutex()
@@ -49,8 +50,21 @@ class VideoThumbProcessor @Inject constructor(
             val headers = mapOf(com.boxpix.app.data.freebox.api.FreeboxApiClient.X_FBX_APP_AUTH to access.second)
 
             val jobs = queueDao.pending(providerId, WorkQueueEntity.TYPE_VIDEO_THUMB, limit)
-            jobs.forEach { job ->
+            jobs.forEachIndexed { index, job ->
+                telemetry.jobStarted(
+                    WorkQueueEntity.TYPE_VIDEO_THUMB,
+                    job.displayPath.substringAfterLast('/'),
+                    index + 1,
+                    jobs.size,
+                )
                 val error = processJob(providerId, job, access.first, headers)
+                if (error != null) {
+                    telemetry.errorLogged(
+                        WorkQueueEntity.TYPE_VIDEO_THUMB,
+                        job.displayPath.substringAfterLast('/'),
+                        error,
+                    )
+                }
                 queueDao.upsert(
                     if (error == null) {
                         job.copy(status = WorkQueueEntity.STATUS_DONE, lastError = null)
@@ -68,6 +82,7 @@ class VideoThumbProcessor @Inject constructor(
                     },
                 )
             }
+            telemetry.jobsFinished()
             return jobs.size
         } finally {
             mutex.unlock()
