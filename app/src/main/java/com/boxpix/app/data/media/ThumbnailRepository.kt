@@ -33,11 +33,16 @@ class ThumbnailRepository @Inject constructor(
 
     private val inFlight = ConcurrentHashMap<String, Mutex>()
 
-    /** Sidecar bytes if present, otherwise generated on the spot. Null = not doable. */
-    suspend fun thumbnail(displayPath: String, pathB64: String): ByteArray? {
+    /**
+     * Sidecar bytes if present, otherwise generated on the spot (unless
+     * [allowGenerate] is false — video posters are the worker's job). Null =
+     * nothing to show.
+     */
+    suspend fun thumbnail(displayPath: String, pathB64: String, allowGenerate: Boolean = true): ByteArray? {
         val sidecarPath = MirrorPaths.thumbPathFor(displayPath, provider.capabilities.canCreateAtRoot)
         val sidecar = provider.download(PathCodec.encode(sidecarPath)).getOrNull()
         if (sidecar != null && sidecar.isNotEmpty()) return sidecar
+        if (!allowGenerate) return null
         return generate(displayPath, pathB64)
     }
 

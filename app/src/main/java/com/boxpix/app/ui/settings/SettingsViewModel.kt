@@ -13,6 +13,7 @@ import com.boxpix.app.data.freebox.auth.AppTokenStore
 import com.boxpix.app.data.freebox.auth.FreeboxSessionManager
 import com.boxpix.app.data.media.Reconciler
 import com.boxpix.app.data.media.SyncStatus
+import com.boxpix.app.data.media.WorkerStatusFile
 import com.boxpix.app.data.media.XmpQueueProcessor
 import com.boxpix.app.data.net.ConnectionMode
 import com.boxpix.app.data.net.EndpointResolver
@@ -51,8 +52,19 @@ class SettingsViewModel @Inject constructor(
     syncStatus: SyncStatus,
     private val reconciler: Reconciler,
     private val xmpProcessor: XmpQueueProcessor,
+    private val workerStatusFile: WorkerStatusFile,
     @ApplicationContext private val context: Context,
 ) : ViewModel() {
+
+    private val workerLastSeen = MutableStateFlow<Long?>(null)
+
+    init {
+        viewModelScope.launch {
+            if (!env.useFakeProvider.first()) {
+                workerLastSeen.value = workerStatusFile.read()?.updatedAtEpochSeconds
+            }
+        }
+    }
 
     data class ConnectionInfo(
         val mode: ConnectionMode?,
@@ -76,6 +88,7 @@ class SettingsViewModel @Inject constructor(
         val lastPassAtEpochSeconds: Long? = null,
         val syncing: Boolean = false,
         val connection: ConnectionInfo = ConnectionInfo(null, null, null, null, null),
+        val workerLastSeenEpochSeconds: Long? = null,
     )
 
     private val queues = env.useFakeProvider.flatMapLatest { useFake ->
@@ -94,12 +107,12 @@ class SettingsViewModel @Inject constructor(
             listOf(th, a, x, l)
         },
         queues,
-        combine(syncStatus.lastPassAtEpochSeconds, syncing, settings.snapshots) { at, busy, snap ->
-            Triple(at, busy, snap)
+        combine(syncStatus.lastPassAtEpochSeconds, syncing, settings.snapshots, workerLastSeen) { at, busy, snap, worker ->
+            listOf(at, busy, snap, worker)
         },
     ) { base, appearance, queueCounts, sync ->
         val (columns, trashCount, useFake) = base
-        val snapshot = sync.third
+        val snapshot = sync[2] as com.boxpix.app.data.prefs.SettingsStore.Snapshot
         UiState(
             gridColumns = columns,
             trashCount = trashCount,
@@ -111,8 +124,9 @@ class SettingsViewModel @Inject constructor(
             appLockEnabled = appearance[3] as Boolean,
             thumbQueue = queueCounts.first,
             xmpQueue = queueCounts.second,
-            lastPassAtEpochSeconds = sync.first,
-            syncing = sync.second,
+            lastPassAtEpochSeconds = sync[0] as Long?,
+            syncing = sync[1] as Boolean,
+            workerLastSeenEpochSeconds = sync[3] as Long?,
             connection = ConnectionInfo(
                 mode = resolver.current?.mode,
                 latencyMs = resolver.lastLatencyMs,

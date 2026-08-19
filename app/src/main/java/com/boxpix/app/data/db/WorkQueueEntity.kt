@@ -18,6 +18,9 @@ data class WorkQueueEntity(
     companion object {
         const val TYPE_THUMB = "THUMB"
         const val TYPE_XMP = "XMP"
+
+        /** Worker-only (SPEC M7): the daily phone never processes these. */
+        const val TYPE_VIDEO_THUMB = "VIDEO_THUMB"
         const val STATUS_PENDING = "PENDING"
         const val STATUS_DONE = "DONE"
         const val STATUS_FAILED = "FAILED"

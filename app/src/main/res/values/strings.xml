@@ -85,6 +85,22 @@
     <string name="viewer_video_fake_note">Video playback streams from the real Freebox — switch off fake data to play.</string>
     <string name="viewer_share_title">Share</string>
 
+    <!-- Worker (M7) -->
+    <string name="worker_channel">Boxpix worker</string>
+    <string name="worker_notif_starting">Starting…</string>
+    <string name="worker_notif_working">Working through the queues…</string>
+    <string name="worker_notif_idle">Idle · %1$d cycles done</string>
+    <string name="worker_notif_waiting">Waiting for charger and wifi</string>
+    <string name="worker_title">Worker mode</string>
+    <string name="worker_toggle_hint">This device grinds the queues while charging on wifi — photo and video thumbnails, XMP, trash purge.</string>
+    <string name="worker_note">Meant for a dedicated old phone left plugged in at night. It restarts after reboots and heartbeats to /.meta/worker-status.json on the disk.</string>
+    <string name="worker_queue_photos">Photo thumbnails</string>
+    <string name="worker_queue_videos">Video thumbnails</string>
+    <string name="worker_queue_xmp">XMP</string>
+    <string name="settings_worker">Worker mode</string>
+    <string name="settings_worker_seen">Worker last seen %1$s</string>
+    <string name="settings_worker_never">No worker seen yet</string>
+
     <!-- App lock -->
     <string name="lock_title">Boxpix is locked</string>
     <string name="lock_unlock">Unlock</string>

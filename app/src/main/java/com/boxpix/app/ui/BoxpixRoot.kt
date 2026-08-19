@@ -20,6 +20,7 @@ import com.boxpix.app.ui.sortmode.SortModeScreen
 import com.boxpix.app.ui.theme.boxpixColors
 import com.boxpix.app.ui.trash.TrashScreen
 import com.boxpix.app.ui.viewer.ViewerScreen
+import com.boxpix.app.ui.worker.WorkerScreen
 
 @Composable
 fun BoxpixRoot(viewModel: RootViewModel = hiltViewModel()) {
@@ -66,7 +67,11 @@ private fun MainNavHost() {
                 onBack = { nav.popBackStack() },
                 onOpenTrash = { nav.navigate("trash") },
                 onOpenTags = { nav.navigate("managetags") },
+                onOpenWorker = { nav.navigate("worker") },
             )
+        }
+        composable("worker") {
+            WorkerScreen(onBack = { nav.popBackStack() })
         }
         composable("managetags") {
             ManageTagsScreen(onBack = { nav.popBackStack() })

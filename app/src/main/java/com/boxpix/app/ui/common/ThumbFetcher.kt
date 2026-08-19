@@ -17,6 +17,8 @@ data class ThumbRequest(
     val pathB64: String,
     val displayPath: String,
     val mtime: Long,
+    /** Videos are sidecar-only: generation is the worker's job (SPEC M7). */
+    val isVideo: Boolean = false,
 )
 
 class ThumbKeyer @Inject constructor() : Keyer<ThumbRequest> {
@@ -32,7 +34,11 @@ class ThumbFetcher(
 ) : Fetcher {
 
     override suspend fun fetch(): FetchResult? {
-        val bytes = thumbnails.thumbnail(request.displayPath, request.pathB64) ?: return null
+        val bytes = thumbnails.thumbnail(
+            request.displayPath,
+            request.pathB64,
+            allowGenerate = !request.isVideo,
+        ) ?: return null
         return SourceResult(
             source = ImageSource(Buffer().write(bytes), options.context),
             mimeType = "image/webp",

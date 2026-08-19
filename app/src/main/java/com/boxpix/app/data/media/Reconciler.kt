@@ -94,8 +94,17 @@ class Reconciler @Inject constructor(
             if (rows.isNotEmpty()) mediaDao.upsert(rows)
             mediaDao.deleteFolderRowsNotIn(providerId, folderDisplay, files.map { it.pathB64 })
 
-            files.filter { it.isImage() }.forEach { file ->
-                val existing = queueDao.find(providerId, WorkQueueEntity.TYPE_THUMB, file.pathB64)
+            files.forEach { file ->
+                val type = when {
+                    file.isImage() -> WorkQueueEntity.TYPE_THUMB
+                    // Video thumbnails are the worker's job (SPEC M7), real box only:
+                    // the fake's videos are not decodable containers.
+                    file.mimeType?.startsWith("video/") == true &&
+                        providerId == TrashRepository.PROVIDER_FREEBOX ->
+                        WorkQueueEntity.TYPE_VIDEO_THUMB
+                    else -> return@forEach
+                }
+                val existing = queueDao.find(providerId, type, file.pathB64)
                 val fresh = known[file.pathB64]
                     ?.takeIf { it.mtime == file.modifiedEpochSeconds && it.hasThumb } != null
                 val needsJob = !fresh &&
@@ -104,7 +113,7 @@ class Reconciler @Inject constructor(
                     queueDao.upsert(
                         WorkQueueEntity(
                             providerId = providerId,
-                            type = WorkQueueEntity.TYPE_THUMB,
+                            type = type,
                             pathB64 = file.pathB64,
                             displayPath = file.displayPath,
                             enqueuedMtime = file.modifiedEpochSeconds,

@@ -119,6 +119,15 @@ class UiPrefsStore @Inject constructor(
         context.uiPrefsDataStore.edit { it[KEY_APP_LOCK] = enabled }
     }
 
+    /** M7: this device is the dedicated night worker. */
+    val workerModeEnabled: Flow<Boolean> = context.uiPrefsDataStore.data
+        .map { it[KEY_WORKER_MODE] ?: false }
+        .distinctUntilChanged()
+
+    suspend fun setWorkerModeEnabled(enabled: Boolean) {
+        context.uiPrefsDataStore.edit { it[KEY_WORKER_MODE] = enabled }
+    }
+
     /** Stable per-installation identity, feeds the tags journal's who/what/when. */
     suspend fun deviceId(): String {
         val existing = context.uiPrefsDataStore.data.map { it[KEY_DEVICE_ID] }.first()
@@ -156,5 +165,6 @@ class UiPrefsStore @Inject constructor(
         private val KEY_THEME = stringPreferencesKey("theme_mode")
         private val KEY_ACCENT = stringPreferencesKey("accent_preset")
         private val KEY_APP_LOCK = booleanPreferencesKey("app_lock_enabled")
+        private val KEY_WORKER_MODE = booleanPreferencesKey("worker_mode_enabled")
     }
 }

@@ -52,6 +52,12 @@ interface MediaDao {
     @Query("UPDATE media_items SET mtime = :mtime WHERE providerId = :providerId AND pathB64 = :pathB64")
     suspend fun setMtime(providerId: String, pathB64: String, mtime: Long)
 
+    @Query(
+        "UPDATE media_items SET durationSeconds = :durationSeconds " +
+            "WHERE providerId = :providerId AND pathB64 = :pathB64",
+    )
+    suspend fun setDuration(providerId: String, pathB64: String, durationSeconds: Long?)
+
     @Query("SELECT * FROM media_items WHERE providerId = :providerId")
     suspend fun all(providerId: String): List<MediaItemEntity>
 }

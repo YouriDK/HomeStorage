@@ -159,7 +159,13 @@ fun SortModeScreen(
                     },
             ) {
                 AsyncImage(
-                    model = HdRequest(current.pathB64, current.mtime),
+                    model = if (current.isVideo) {
+                        com.boxpix.app.ui.common.ThumbRequest(
+                            current.pathB64, current.displayPath, current.mtime, isVideo = true,
+                        )
+                    } else {
+                        HdRequest(current.pathB64, current.mtime)
+                    },
                     contentDescription = current.name,
                     modifier = Modifier.matchParentSize(),
                 )

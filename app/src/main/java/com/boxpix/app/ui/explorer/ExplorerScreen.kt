@@ -745,16 +745,19 @@ private fun MediaCell(
                 onLongClick = { viewModel.startSelection(entry.pathB64) },
             ),
     ) {
-        if (!isVideo) {
-            AsyncImage(
-                model = ThumbRequest(entry.pathB64, entry.displayPath, entry.modifiedEpochSeconds),
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                placeholder = ColorPainter(tone),
-                error = ColorPainter(tone),
-                modifier = Modifier.matchParentSize(),
-            )
-        }
+        AsyncImage(
+            model = ThumbRequest(
+                entry.pathB64,
+                entry.displayPath,
+                entry.modifiedEpochSeconds,
+                isVideo = isVideo,
+            ),
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            placeholder = ColorPainter(tone),
+            error = ColorPainter(tone),
+            modifier = Modifier.matchParentSize(),
+        )
         if (isVideo) {
             Row(
                 modifier = Modifier

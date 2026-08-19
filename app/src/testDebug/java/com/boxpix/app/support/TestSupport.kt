@@ -53,6 +53,12 @@ class InMemoryMediaDao : MediaDao {
         }
     }
 
+    override suspend fun setDuration(providerId: String, pathB64: String, durationSeconds: Long?) {
+        store.value[providerId to pathB64]?.let {
+            store.value = store.value + ((providerId to pathB64) to it.copy(durationSeconds = durationSeconds))
+        }
+    }
+
     override fun count(providerId: String) =
         store.map { map -> map.values.count { it.providerId == providerId } }
 

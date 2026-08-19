@@ -57,6 +57,7 @@ fun SettingsScreen(
     onBack: () -> Unit,
     onOpenTrash: () -> Unit,
     onOpenTags: () -> Unit,
+    onOpenWorker: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -175,6 +176,20 @@ fun SettingsScreen(
                     name = stringResource(R.string.settings_xmp_queue),
                     sub = pluralStringResource(R.plurals.settings_pending, state.xmpQueue, state.xmpQueue),
                 ) {}
+            }
+            SettingRow(
+                name = stringResource(R.string.settings_worker),
+                sub = state.workerLastSeenEpochSeconds?.let {
+                    stringResource(R.string.settings_worker_seen, formatDate(it))
+                } ?: stringResource(R.string.settings_worker_never),
+                onClick = onOpenWorker,
+            ) {
+                Icon(
+                    Icons.Outlined.ChevronRight,
+                    contentDescription = null,
+                    tint = colors.faint,
+                    modifier = Modifier.size(18.dp),
+                )
             }
             SettingRow(
                 name = stringResource(R.string.settings_resync),

@@ -1,7 +1,11 @@
 package com.boxpix.app.di
 
+import com.boxpix.app.data.freebox.auth.FreeboxSessionManager
 import com.boxpix.app.data.media.AndroidMediaProcessor
+import com.boxpix.app.data.media.AndroidVideoFrameExtractor
 import com.boxpix.app.data.media.MediaProcessor
+import com.boxpix.app.data.media.StreamingAccess
+import com.boxpix.app.data.media.VideoFrameExtractor
 import com.boxpix.app.data.net.AndroidNetworkStatus
 import com.boxpix.app.data.net.NetworkStatus
 import com.boxpix.app.data.prefs.DeviceIdentity
@@ -53,4 +57,13 @@ object AppModule {
     @Singleton
     fun xmpPolicy(prefs: UiPrefsStore): XmpPolicy =
         XmpPolicy { prefs.xmpWriteEnabled.first() }
+
+    @Provides
+    @Singleton
+    fun videoFrameExtractor(): VideoFrameExtractor = AndroidVideoFrameExtractor()
+
+    @Provides
+    @Singleton
+    fun streamingAccess(sessions: FreeboxSessionManager): StreamingAccess =
+        StreamingAccess { sessions.streamingAccess().getOrNull() }
 }

@@ -288,16 +288,15 @@ private fun ResultCell(item: MediaRef, onClick: () -> Unit) {
             .background(tone)
             .clickable(onClick = onClick),
     ) {
-        if (!item.isVideo) {
-            AsyncImage(
-                model = ThumbRequest(item.pathB64, item.displayPath, item.mtime),
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                placeholder = ColorPainter(tone),
-                error = ColorPainter(tone),
-                modifier = Modifier.matchParentSize(),
-            )
-        } else {
+        AsyncImage(
+            model = ThumbRequest(item.pathB64, item.displayPath, item.mtime, isVideo = item.isVideo),
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            placeholder = ColorPainter(tone),
+            error = ColorPainter(tone),
+            modifier = Modifier.matchParentSize(),
+        )
+        if (item.isVideo) {
             Icon(
                 Icons.Filled.PlayArrow,
                 contentDescription = null,
