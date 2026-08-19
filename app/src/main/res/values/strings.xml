@@ -83,6 +83,45 @@
     <string name="viewer_video_fake_note">Video playback streams from the real Freebox — switch off fake data to play.</string>
     <string name="viewer_share_title">Share</string>
 
+    <!-- Tags -->
+    <string name="tag_picker_title">Tags</string>
+    <string name="tag_picker_new_hint">New tag</string>
+    <string name="tag_picker_add">Add</string>
+    <string name="explorer_action_tag">Tag</string>
+    <string name="conflict_title">Tags changed on another device</string>
+    <string name="conflict_message">%1$s exported its tags a moment ago. Overwrite the shared journal with this phone\'s version?</string>
+    <string name="conflict_overwrite">Overwrite</string>
+
+    <!-- Search -->
+    <string name="search_hint">Search by name</string>
+    <plurals name="search_results">
+        <item quantity="one">%1$d result</item>
+        <item quantity="other">%1$d results</item>
+    </plurals>
+    <string name="search_clear">Clear filters</string>
+    <string name="search_empty">Nothing matches yet</string>
+    <string name="search_empty_hint">Try a shorter file name, or drop a filter — the others still apply.</string>
+    <string name="search_date_filter">Date range</string>
+    <string name="search_date_any">Any date</string>
+    <string name="search_in_folder">In %1$s</string>
+    <string name="search_title">Search</string>
+
+    <!-- Sort mode -->
+    <string name="sort_title">Sorting %1$s</string>
+    <string name="sort_skip">Skip</string>
+    <string name="sort_moved_to">Moved to %1$s</string>
+    <string name="sort_move_to">Move to</string>
+    <string name="sort_pinned_count">· %1$d pinned</string>
+    <string name="sort_edit">Edit</string>
+    <string name="sort_shortcuts_title">Sort shortcuts</string>
+    <string name="sort_shortcuts_done">Done</string>
+    <string name="sort_pin_folder">Pin another folder</string>
+    <string name="sort_quick_tags">Quick tags</string>
+    <string name="sort_swipe_hint">Swipe up to skip</string>
+    <string name="sort_empty">Nothing left to sort here.</string>
+    <string name="sort_shortcuts_note">Pin order drives the destination row. Quick tags apply without leaving sort mode.</string>
+    <string name="sort_pick_here">Pin this folder</string>
+
     <!-- Dialogs -->
     <string name="dialog_trash_title">Move to trash?</string>
     <plurals name="dialog_trash_message">

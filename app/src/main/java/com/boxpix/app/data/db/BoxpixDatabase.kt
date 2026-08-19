@@ -21,4 +21,5 @@ abstract class BoxpixDatabase : RoomDatabase() {
     abstract fun workQueueDao(): WorkQueueDao
     abstract fun protectedFolderDao(): ProtectedFolderDao
     abstract fun tagDao(): TagDao
+    abstract fun searchDao(): SearchDao
 }

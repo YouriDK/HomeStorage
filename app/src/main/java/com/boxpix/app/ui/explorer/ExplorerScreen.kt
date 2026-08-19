@@ -33,6 +33,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.DriveFileMove
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Close
@@ -41,6 +42,9 @@ import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.LockOpen
+import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.Sell
+import androidx.compose.material.icons.outlined.Swipe
 import androidx.compose.material.icons.outlined.SelectAll
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.DropdownMenu
@@ -80,6 +84,7 @@ import com.boxpix.app.ui.common.EmptyFolderView
 import com.boxpix.app.ui.common.ErrorView
 import com.boxpix.app.ui.common.GridSkeleton
 import com.boxpix.app.ui.common.PlaceholderTones
+import com.boxpix.app.ui.common.TagPickerSheet
 import com.boxpix.app.ui.common.ThumbRequest
 import com.boxpix.app.ui.common.TrashConfirmDialog
 import com.boxpix.app.ui.common.WakingDiskView
@@ -92,6 +97,8 @@ import com.boxpix.app.ui.theme.boxpixColors
 fun ExplorerScreen(
     onOpenSettings: () -> Unit,
     onOpenViewer: () -> Unit,
+    onOpenSearch: () -> Unit,
+    onOpenSortMode: () -> Unit,
     viewModel: ExplorerViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -113,6 +120,10 @@ fun ExplorerScreen(
     var showNewFolderDialog by remember { mutableStateOf(false) }
     var showRenameDialog by remember { mutableStateOf(false) }
     var showTrashConfirm by remember { mutableStateOf(false) }
+    var showTagPicker by remember { mutableStateOf(false) }
+
+    val allTags by viewModel.allTags.collectAsStateWithLifecycle()
+    val exportConflict by viewModel.exportConflict.collectAsStateWithLifecycle()
 
     val singleFolder = state.selection.singleOrNull()
         ?.let { selected -> state.folders.firstOrNull { it.pathB64 == selected } }
@@ -132,6 +143,7 @@ fun ExplorerScreen(
                     isProtected = singleFolder?.displayPath in state.protectedPaths,
                     onClose = viewModel::clearSelection,
                     onRename = { showRenameDialog = true },
+                    onTag = { showTagPicker = true },
                     onMove = viewModel::openMoveSheet,
                     onTrash = { showTrashConfirm = true },
                     onSelectAll = viewModel::selectAll,
@@ -142,6 +154,13 @@ fun ExplorerScreen(
                     state = state,
                     onBack = { viewModel.onBack() },
                     onOpenSettings = onOpenSettings,
+                    onOpenSearch = {
+                        viewModel.stageSearch()
+                        onOpenSearch()
+                    },
+                    onOpenSortMode = {
+                        if (viewModel.stageSortMode()) onOpenSortMode()
+                    },
                 )
                 SortRow(
                     sort = state.sort,
@@ -167,6 +186,41 @@ fun ExplorerScreen(
                 else -> ContentGrid(state = state, viewModel = viewModel, onOpenViewer = onOpenViewer)
             }
         }
+    }
+
+    if (showTagPicker) {
+        TagPickerSheet(
+            tags = allTags.filterNot { it.isSystem },
+            selectedIds = emptySet(),
+            onToggle = { tag -> viewModel.applyTagToSelection(tag) },
+            onCreate = { name -> viewModel.createTagAndApply(name) },
+            onDismiss = { showTagPicker = false },
+        )
+    }
+
+    exportConflict?.let { conflict ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = viewModel::dismissConflict,
+            containerColor = boxpixColors.elevated,
+            shape = RoundedCornerShape(14.dp),
+            title = { Text(stringResource(R.string.conflict_title), color = boxpixColors.text) },
+            text = {
+                Text(
+                    stringResource(R.string.conflict_message, conflict.remoteDevice),
+                    color = boxpixColors.dim,
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = viewModel::confirmConflictedExport) {
+                    Text(stringResource(R.string.conflict_overwrite), color = boxpixColors.accent)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = viewModel::dismissConflict) {
+                    Text(stringResource(R.string.dialog_cancel), color = boxpixColors.dim)
+                }
+            },
+        )
     }
 
     if (showTrashConfirm) {
@@ -228,6 +282,8 @@ private fun ExplorerTopBar(
     state: ExplorerViewModel.UiState,
     onBack: () -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenSearch: () -> Unit,
+    onOpenSortMode: () -> Unit,
 ) {
     val colors = boxpixColors
     Row(
@@ -270,6 +326,24 @@ private fun ExplorerTopBar(
         if (state.isFake) {
             Badge(stringResource(R.string.badge_fake))
             Spacer(Modifier.size(4.dp))
+        }
+        if (state.media.isNotEmpty()) {
+            IconButton(onClick = onOpenSortMode) {
+                Icon(
+                    Icons.Outlined.Swipe,
+                    contentDescription = stringResource(R.string.sort_title, state.current?.name.orEmpty()),
+                    tint = colors.dim,
+                    modifier = Modifier.size(22.dp),
+                )
+            }
+        }
+        IconButton(onClick = onOpenSearch) {
+            Icon(
+                Icons.Outlined.Search,
+                contentDescription = stringResource(R.string.search_title),
+                tint = colors.dim,
+                modifier = Modifier.size(22.dp),
+            )
         }
         IconButton(onClick = onOpenSettings) {
             Icon(
@@ -377,6 +451,7 @@ private fun SelectionBar(
     isProtected: Boolean,
     onClose: () -> Unit,
     onRename: () -> Unit,
+    onTag: () -> Unit,
     onMove: () -> Unit,
     onTrash: () -> Unit,
     onSelectAll: () -> Unit,
@@ -421,6 +496,14 @@ private fun SelectionBar(
                     modifier = Modifier.size(22.dp),
                 )
             }
+        }
+        IconButton(onClick = onTag) {
+            Icon(
+                Icons.Outlined.Sell,
+                contentDescription = stringResource(R.string.explorer_action_tag),
+                tint = colors.dim,
+                modifier = Modifier.size(22.dp),
+            )
         }
         IconButton(onClick = onMove) {
             Icon(
@@ -501,6 +584,7 @@ private fun ContentGrid(
                 entry = state.media[index],
                 selected = state.media[index].pathB64 in state.selection,
                 selectionActive = state.selectionMode,
+                isFavorite = state.media[index].pathB64 in state.favoritePaths,
                 viewModel = viewModel,
                 onOpenViewer = onOpenViewer,
             )
@@ -604,6 +688,7 @@ private fun MediaCell(
     entry: StorageEntry,
     selected: Boolean,
     selectionActive: Boolean,
+    isFavorite: Boolean,
     viewModel: ExplorerViewModel,
     onOpenViewer: () -> Unit,
 ) {
@@ -667,6 +752,17 @@ private fun MediaCell(
                     )
                 }
             }
+        }
+        if (isFavorite) {
+            Icon(
+                Icons.Filled.Favorite,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(6.dp)
+                    .size(13.dp),
+            )
         }
         if (selected) SelectionCheck(Modifier.align(Alignment.TopEnd))
     }

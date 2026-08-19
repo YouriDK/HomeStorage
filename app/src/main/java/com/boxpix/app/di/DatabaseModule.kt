@@ -5,6 +5,7 @@ import androidx.room.Room
 import com.boxpix.app.data.db.BoxpixDatabase
 import com.boxpix.app.data.db.MediaDao
 import com.boxpix.app.data.db.ProtectedFolderDao
+import com.boxpix.app.data.db.SearchDao
 import com.boxpix.app.data.db.TagDao
 import com.boxpix.app.data.db.TrashDao
 import com.boxpix.app.data.db.WorkQueueDao
@@ -41,4 +42,7 @@ object DatabaseModule {
 
     @Provides
     fun tagDao(db: BoxpixDatabase): TagDao = db.tagDao()
+
+    @Provides
+    fun searchDao(db: BoxpixDatabase): SearchDao = db.searchDao()
 }

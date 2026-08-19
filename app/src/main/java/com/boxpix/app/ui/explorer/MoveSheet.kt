@@ -46,6 +46,7 @@ fun MoveSheet(
     onBrowseUp: () -> Unit,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
+    confirmLabel: String = stringResource(R.string.move_here),
 ) {
     val colors = boxpixColors
     ModalBottomSheet(
@@ -161,7 +162,7 @@ fun MoveSheet(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        text = stringResource(R.string.move_here),
+                        text = confirmLabel,
                         style = MaterialTheme.typography.bodyMedium,
                         color = colors.accent,
                     )

@@ -8,10 +8,12 @@ import androidx.lifecycle.viewModelScope
 import com.boxpix.app.core.FbxResult
 import com.boxpix.app.core.FreeboxError
 import com.boxpix.app.data.freebox.auth.FreeboxSessionManager
+import com.boxpix.app.data.db.TagWithCount
 import com.boxpix.app.data.storage.RootLocator
 import com.boxpix.app.data.storage.StorageEntry
 import com.boxpix.app.data.storage.StorageEnv
 import com.boxpix.app.data.storage.StorageProvider
+import com.boxpix.app.data.tags.TagRepository
 import com.boxpix.app.data.trash.TrashRepository
 import com.boxpix.app.data.freebox.api.FreeboxApiClient
 import com.boxpix.app.data.freebox.api.PathCodec
@@ -21,9 +23,11 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -38,6 +42,7 @@ class ViewerViewModel @Inject constructor(
     private val sessions: FreeboxSessionManager,
     private val env: StorageEnv,
     private val rootLocator: RootLocator,
+    private val tagRepository: TagRepository,
     @ApplicationContext private val context: Context,
 ) : ViewModel() {
 
@@ -61,6 +66,34 @@ class ViewerViewModel @Inject constructor(
 
     private val _shareUri = MutableStateFlow<Uri?>(null)
     val shareUri: StateFlow<Uri?> = _shareUri.asStateFlow()
+
+    val allTags = tagRepository.tags
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val favoritePaths = tagRepository.favoritePaths
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList<String>())
+
+    fun tagIdsFlow(pathB64: String) = tagRepository.tagIdsFor(pathB64)
+
+    fun toggleTag(item: MediaRef, tag: TagWithCount, currentlySelected: Boolean) {
+        viewModelScope.launch {
+            if (currentlySelected) {
+                tagRepository.removeTag(item, tag.id)
+            } else {
+                tagRepository.addTag(item, tag.id)
+            }
+        }
+    }
+
+    fun createAndTag(item: MediaRef, name: String) {
+        viewModelScope.launch {
+            tagRepository.createTag(name)?.let { tagRepository.addTag(item, it.id) }
+        }
+    }
+
+    fun toggleFavorite(item: MediaRef) {
+        viewModelScope.launch { tagRepository.toggleFavorite(item) }
+    }
 
     init {
         viewModelScope.launch {

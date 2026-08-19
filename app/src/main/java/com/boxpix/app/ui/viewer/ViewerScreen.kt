@@ -28,6 +28,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.DriveFileMove
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.outlined.Delete
@@ -82,6 +83,7 @@ import coil.compose.AsyncImage
 import coil.compose.SubcomposeAsyncImage
 import com.boxpix.app.R
 import com.boxpix.app.ui.common.HdRequest
+import com.boxpix.app.ui.common.TagPickerSheet
 import com.boxpix.app.ui.common.ThumbRequest
 import com.boxpix.app.ui.common.TrashConfirmDialog
 import com.boxpix.app.ui.common.formatBytes
@@ -113,7 +115,14 @@ fun ViewerScreen(
 
     var showRenameDialog by remember { mutableStateOf(false) }
     var showTrashConfirm by remember { mutableStateOf(false) }
+    var showTagPicker by remember { mutableStateOf(false) }
     var overflowOpen by remember { mutableStateOf(false) }
+
+    val allTags by viewModel.allTags.collectAsStateWithLifecycle()
+    val favoritePaths by viewModel.favoritePaths.collectAsStateWithLifecycle()
+    val currentTagIds by remember(current.pathB64) { viewModel.tagIdsFlow(current.pathB64) }
+        .collectAsStateWithLifecycle(initialValue = emptyList())
+    val isFavorite = current.pathB64 in favoritePaths
 
     LaunchedEffect(shareUri) {
         shareUri?.let { uri ->
@@ -207,6 +216,9 @@ fun ViewerScreen(
                 .navigationBarsPadding(),
         ) {
             ViewerActionBar(
+                isFavorite = isFavorite,
+                onTag = { showTagPicker = true },
+                onFavorite = { viewModel.toggleFavorite(current) },
                 onMove = viewModel::openMoveSheet,
                 onTrash = { showTrashConfirm = true },
                 onShare = { viewModel.share(current) },
@@ -250,8 +262,26 @@ fun ViewerScreen(
         )
     }
 
+    if (showTagPicker) {
+        TagPickerSheet(
+            tags = allTags.filterNot { it.isSystem },
+            selectedIds = currentTagIds.toSet(),
+            onToggle = { tag -> viewModel.toggleTag(current, tag, tag.id in currentTagIds) },
+            onCreate = { name -> viewModel.createAndTag(current, name) },
+            onDismiss = { showTagPicker = false },
+        )
+    }
+
     if (state.infoOpen) {
-        InfoSheet(item = current, onClose = { viewModel.setInfoOpen(false) })
+        InfoSheet(
+            item = current,
+            tagNames = allTags.filter { it.id in currentTagIds && !it.isSystem }.map { it.name },
+            onAddTag = {
+                viewModel.setInfoOpen(false)
+                showTagPicker = true
+            },
+            onClose = { viewModel.setInfoOpen(false) },
+        )
     }
 }
 
@@ -437,6 +467,9 @@ private fun ViewerTopBar(
 
 @Composable
 private fun ViewerActionBar(
+    isFavorite: Boolean,
+    onTag: () -> Unit,
+    onFavorite: () -> Unit,
     onMove: () -> Unit,
     onTrash: () -> Unit,
     onShare: () -> Unit,
@@ -451,10 +484,13 @@ private fun ViewerActionBar(
         horizontalArrangement = Arrangement.spacedBy(4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Tag and Favourite ship with M5 — inert at reduced opacity, per the design's
-        // treatment of unavailable actions.
-        ViewerAction(Icons.Outlined.Sell, stringResource(R.string.viewer_action_tag), enabled = false) {}
-        ViewerAction(Icons.Outlined.FavoriteBorder, stringResource(R.string.viewer_action_favourite), enabled = false) {}
+        ViewerAction(Icons.Outlined.Sell, stringResource(R.string.viewer_action_tag), onClick = onTag)
+        ViewerAction(
+            icon = if (isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
+            label = stringResource(R.string.viewer_action_favourite),
+            tint = if (isFavorite) Color(0xFF6FC0B3) else Color.White,
+            onClick = onFavorite,
+        )
         ViewerAction(Icons.AutoMirrored.Outlined.DriveFileMove, stringResource(R.string.viewer_action_move), onClick = onMove)
         ViewerAction(Icons.Outlined.Delete, stringResource(R.string.viewer_action_trash), onClick = onTrash)
         ViewerAction(Icons.Outlined.Share, stringResource(R.string.viewer_action_share), onClick = onShare)
@@ -467,6 +503,7 @@ private fun ViewerAction(
     icon: ImageVector,
     label: String,
     enabled: Boolean = true,
+    tint: Color = Color.White,
     onClick: () -> Unit,
 ) {
     Column(
@@ -476,7 +513,7 @@ private fun ViewerAction(
             .padding(horizontal = 8.dp, vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Icon(icon, contentDescription = label, tint = Color.White, modifier = Modifier.size(22.dp))
+        Icon(icon, contentDescription = label, tint = tint, modifier = Modifier.size(22.dp))
         Spacer(Modifier.height(3.dp))
         Text(text = label, fontSize = 9.5.sp, color = Color.White.copy(alpha = 0.8f))
     }
@@ -497,7 +534,12 @@ private fun InfoSheetScaffold(onClose: () -> Unit, content: @Composable () -> Un
 
 @kotlin.OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun InfoSheet(item: MediaRef, onClose: () -> Unit) {
+private fun InfoSheet(
+    item: MediaRef,
+    tagNames: List<String>,
+    onAddTag: () -> Unit,
+    onClose: () -> Unit,
+) {
     val colors = boxpixColors
     InfoSheetScaffold(onClose = onClose) {
         Column(modifier = Modifier.padding(horizontal = 18.dp)) {
@@ -526,6 +568,13 @@ private fun InfoSheet(item: MediaRef, onClose: () -> Unit) {
                 value = item.displayPath,
                 monospace = true,
             )
+            InfoRow(
+                label = stringResource(R.string.tag_picker_title),
+                value = if (tagNames.isEmpty()) "—" else tagNames.joinToString(", "),
+            )
+            TextButton(onClick = onAddTag) {
+                Text(stringResource(R.string.tag_picker_new_hint), color = colors.accent)
+            }
             Spacer(Modifier.height(24.dp))
         }
     }

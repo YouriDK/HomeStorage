@@ -9,10 +9,14 @@ import com.boxpix.app.data.prefs.SettingsStore
 import com.boxpix.app.data.prefs.SortOrder
 import com.boxpix.app.data.prefs.UiPrefsStore
 import com.boxpix.app.data.storage.StorageEntry
+import com.boxpix.app.data.db.TagWithCount
 import com.boxpix.app.data.storage.ProtectionRepository
 import com.boxpix.app.data.storage.StorageEnv
 import com.boxpix.app.data.storage.StorageProvider
+import com.boxpix.app.data.tags.TagRepository
 import com.boxpix.app.data.trash.TrashRepository
+import com.boxpix.app.ui.search.SearchContext
+import com.boxpix.app.ui.sortmode.SortSession
 import com.boxpix.app.ui.viewer.ViewerSession
 import com.boxpix.app.ui.viewer.toMediaRef
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -22,9 +26,11 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -38,6 +44,9 @@ class ExplorerViewModel @Inject constructor(
     private val uiPrefs: UiPrefsStore,
     private val viewerSession: ViewerSession,
     private val protection: ProtectionRepository,
+    private val tagRepository: TagRepository,
+    private val sortSession: SortSession,
+    private val searchContext: SearchContext,
 ) : ViewModel() {
 
     data class FolderRef(val pathB64: String, val displayPath: String, val name: String)
@@ -69,6 +78,7 @@ class ExplorerViewModel @Inject constructor(
         val isFake: Boolean = false,
         val move: MoveState = MoveState(),
         val protectedPaths: List<String> = emptyList(),
+        val favoritePaths: List<String> = emptyList(),
     ) {
         val current: FolderRef? get() = stack.lastOrNull() ?: root
         val depth: Int get() = stack.size
@@ -100,6 +110,49 @@ class ExplorerViewModel @Inject constructor(
                 _state.update { it.copy(protectedPaths = folders.map { f -> f.displayPath }) }
             }
         }
+        viewModelScope.launch {
+            tagRepository.favoritePaths.collect { paths ->
+                _state.update { it.copy(favoritePaths = paths) }
+            }
+        }
+    }
+
+    val allTags = tagRepository.tags
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val exportConflict = tagRepository.exportConflict
+
+    fun confirmConflictedExport() = tagRepository.confirmConflictedExport()
+    fun dismissConflict() = tagRepository.dismissConflict()
+
+    /** Applies a tag to every selected media (folders skipped). */
+    fun applyTagToSelection(tag: TagWithCount) {
+        val medias = selectedEntries().filterNot { it.isDirectory }
+        viewModelScope.launch {
+            medias.forEach { tagRepository.addTag(it.toMediaRef(), tag.id) }
+        }
+    }
+
+    fun createTagAndApply(name: String) {
+        viewModelScope.launch {
+            tagRepository.createTag(name)?.let { tag ->
+                selectedEntries().filterNot { it.isDirectory }
+                    .forEach { tagRepository.addTag(it.toMediaRef(), tag.id) }
+            }
+        }
+    }
+
+    /** True when the current folder was staged for sort mode. */
+    fun stageSortMode(): Boolean {
+        val folder = _state.value.current ?: return false
+        val medias = _state.value.media.map { it.toMediaRef() }
+        if (medias.isEmpty()) return false
+        sortSession.open(folder, medias)
+        return true
+    }
+
+    fun stageSearch() {
+        searchContext.folder = _state.value.current
     }
 
     // Navigation
