@@ -28,6 +28,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.DriveFileMove
+import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.FavoriteBorder
@@ -42,11 +43,14 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -82,6 +86,7 @@ import com.boxpix.app.ui.common.ThumbRequest
 import com.boxpix.app.ui.common.TrashConfirmDialog
 import com.boxpix.app.ui.common.formatBytes
 import com.boxpix.app.ui.common.formatDate
+import com.boxpix.app.ui.common.formatDuration
 import com.boxpix.app.ui.common.message
 import com.boxpix.app.ui.explorer.MoveSheet
 import com.boxpix.app.ui.explorer.NameDialog
@@ -134,6 +139,7 @@ fun ViewerScreen(
                 isCurrent = page == pagerState.currentPage,
                 streamingUrl = viewModel.streamingUrl(item),
                 headers = state.videoAccess?.headers.orEmpty(),
+                chromeVisible = state.chromeVisible,
                 onTap = viewModel::toggleChrome,
             )
         }
@@ -238,6 +244,7 @@ private fun MediaPage(
     isCurrent: Boolean,
     streamingUrl: String?,
     headers: Map<String, String>,
+    chromeVisible: Boolean,
     onTap: () -> Unit,
 ) {
     Box(
@@ -269,7 +276,12 @@ private fun MediaPage(
                 },
             )
         } else if (isCurrent && streamingUrl != null) {
-            VideoPlayer(url = streamingUrl, headers = headers, modifier = Modifier.fillMaxSize())
+            VideoPlayerWithControls(
+                url = streamingUrl,
+                headers = headers,
+                controlsVisible = chromeVisible,
+                modifier = Modifier.fillMaxSize(),
+            )
         } else {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Icon(
@@ -291,9 +303,19 @@ private fun MediaPage(
     }
 }
 
+/**
+ * Design-conformant video controls: centred play/pause and a seek row sitting
+ * ABOVE the floating action bar — ExoPlayer's stock controller would be hidden
+ * behind it.
+ */
 @OptIn(UnstableApi::class)
 @Composable
-private fun VideoPlayer(url: String, headers: Map<String, String>, modifier: Modifier = Modifier) {
+private fun VideoPlayerWithControls(
+    url: String,
+    headers: Map<String, String>,
+    controlsVisible: Boolean,
+    modifier: Modifier = Modifier,
+) {
     val context = LocalContext.current
     val player = remember(url) {
         val dataSourceFactory = DefaultHttpDataSource.Factory().setDefaultRequestProperties(headers)
@@ -308,16 +330,84 @@ private fun VideoPlayer(url: String, headers: Map<String, String>, modifier: Mod
     androidx.compose.runtime.DisposableEffect(player) {
         onDispose { player.release() }
     }
-    AndroidView(
-        factory = { viewContext ->
-            PlayerView(viewContext).apply {
-                this.player = player
-                useController = true
-                setBackgroundColor(android.graphics.Color.BLACK)
+
+    var positionMs by remember { mutableLongStateOf(0L) }
+    var durationMs by remember { mutableLongStateOf(0L) }
+    var playing by remember { mutableStateOf(false) }
+    LaunchedEffect(player) {
+        while (true) {
+            positionMs = player.currentPosition.coerceAtLeast(0)
+            durationMs = player.duration.coerceAtLeast(0)
+            playing = player.isPlaying
+            kotlinx.coroutines.delay(300)
+        }
+    }
+
+    Box(modifier = modifier) {
+        AndroidView(
+            factory = { viewContext ->
+                PlayerView(viewContext).apply {
+                    this.player = player
+                    useController = false
+                    setBackgroundColor(android.graphics.Color.BLACK)
+                }
+            },
+            modifier = Modifier.fillMaxSize(),
+        )
+
+        if (!playing || controlsVisible) {
+            IconButton(
+                onClick = { if (playing) player.pause() else player.play() },
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .size(66.dp)
+                    .background(Color.Black.copy(alpha = 0.45f), androidx.compose.foundation.shape.CircleShape)
+                    .border(1.dp, Color.White.copy(alpha = 0.2f), androidx.compose.foundation.shape.CircleShape),
+            ) {
+                Icon(
+                    if (playing) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(34.dp),
+                )
             }
-        },
-        modifier = modifier,
-    )
+        }
+
+        if (controlsVisible && durationMs > 0) {
+            Row(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .navigationBarsPadding()
+                    .padding(start = 18.dp, end = 18.dp, bottom = 104.dp)
+                    .fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = formatDuration(positionMs / 1000),
+                    fontSize = 11.sp,
+                    color = Color.White.copy(alpha = 0.8f),
+                )
+                Slider(
+                    value = positionMs.toFloat().coerceIn(0f, durationMs.toFloat()),
+                    onValueChange = { player.seekTo(it.toLong()) },
+                    valueRange = 0f..durationMs.toFloat(),
+                    colors = SliderDefaults.colors(
+                        thumbColor = Color(0xFF6FC0B3),
+                        activeTrackColor = Color(0xFF6FC0B3),
+                        inactiveTrackColor = Color.White.copy(alpha = 0.24f),
+                    ),
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 10.dp),
+                )
+                Text(
+                    text = formatDuration(durationMs / 1000),
+                    fontSize = 11.sp,
+                    color = Color.White.copy(alpha = 0.8f),
+                )
+            }
+        }
+    }
 }
 
 @Composable
