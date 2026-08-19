@@ -27,6 +27,11 @@ interface WorkQueueDao {
     )
     fun pendingCount(providerId: String): Flow<Int>
 
+    @Query(
+        "SELECT COUNT(*) FROM work_queue WHERE providerId = :providerId AND type = :type AND status = 'PENDING'",
+    )
+    fun pendingCountByType(providerId: String, type: String): Flow<Int>
+
     @Query("DELETE FROM work_queue WHERE providerId = :providerId AND pathB64 = :pathB64")
     suspend fun deleteForPath(providerId: String, pathB64: String)
 }

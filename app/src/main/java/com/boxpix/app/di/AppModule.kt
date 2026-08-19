@@ -2,6 +2,10 @@ package com.boxpix.app.di
 
 import com.boxpix.app.data.media.AndroidMediaProcessor
 import com.boxpix.app.data.media.MediaProcessor
+import com.boxpix.app.data.net.AndroidNetworkStatus
+import com.boxpix.app.data.net.NetworkStatus
+import com.boxpix.app.data.prefs.DeviceIdentity
+import com.boxpix.app.data.prefs.UiPrefsStore
 import com.boxpix.app.data.storage.DefaultRootLocator
 import com.boxpix.app.data.storage.RootLocator
 import dagger.Module
@@ -34,4 +38,12 @@ object AppModule {
     @Provides
     @Singleton
     fun rootLocator(impl: DefaultRootLocator): RootLocator = impl
+
+    @Provides
+    @Singleton
+    fun networkStatus(impl: AndroidNetworkStatus): NetworkStatus = impl
+
+    @Provides
+    @Singleton
+    fun deviceIdentity(prefs: UiPrefsStore): DeviceIdentity = DeviceIdentity { prefs.deviceId() }
 }

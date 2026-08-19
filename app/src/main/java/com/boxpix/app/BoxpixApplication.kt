@@ -11,6 +11,7 @@ import androidx.work.WorkManager
 import coil.ImageLoader
 import coil.ImageLoaderFactory
 import com.boxpix.app.data.media.ReconcilerScheduler
+import com.boxpix.app.data.media.XmpScheduler
 import com.boxpix.app.ui.common.HdFetcher
 import com.boxpix.app.ui.common.HdKeyer
 import com.boxpix.app.ui.common.ThumbFetcher
@@ -41,6 +42,9 @@ class BoxpixApplication : Application(), Configuration.Provider, ImageLoaderFact
 
     @Inject
     lateinit var reconcilerScheduler: ReconcilerScheduler
+
+    @Inject
+    lateinit var xmpScheduler: XmpScheduler
 
     override val workManagerConfiguration: Configuration
         get() = Configuration.Builder().setWorkerFactory(workerFactory).build()
@@ -80,5 +84,6 @@ class BoxpixApplication : Application(), Configuration.Provider, ImageLoaderFact
         )
 
         reconcilerScheduler.start()
+        xmpScheduler.start()
     }
 }

@@ -47,4 +47,11 @@ interface MediaDao {
 
     @Query("SELECT * FROM media_items WHERE providerId = :providerId AND pathB64 = :pathB64")
     suspend fun byPath(providerId: String, pathB64: String): MediaItemEntity?
+
+    /** Post-XMP-rewrite: same path, new disk mtime (spike contract, no thumb loop). */
+    @Query("UPDATE media_items SET mtime = :mtime WHERE providerId = :providerId AND pathB64 = :pathB64")
+    suspend fun setMtime(providerId: String, pathB64: String, mtime: Long)
+
+    @Query("SELECT * FROM media_items WHERE providerId = :providerId")
+    suspend fun all(providerId: String): List<MediaItemEntity>
 }

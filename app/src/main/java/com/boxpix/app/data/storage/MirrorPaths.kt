@@ -11,6 +11,18 @@ object MirrorPaths {
 
     const val TRASH_DIR = ".trash"
     const val THUMBS_DIR = ".thumbs"
+    const val META_DIR = ".meta"
+
+    /**
+     * Root of an app dir (.meta, .trash, .thumbs) for the tree containing
+     * [treePath] — "/Archive 1/.meta" on a virtual-root box, "/.meta" otherwise.
+     */
+    fun appRootDirFor(treePath: String, dirName: String, canCreateAtRoot: Boolean): String {
+        if (canCreateAtRoot) return "/$dirName"
+        val rooted = treePath.startsWith("/")
+        val disk = treePath.split('/').firstOrNull { it.isNotEmpty() } ?: return "/$dirName"
+        return "${if (rooted) "/" else ""}$disk/$dirName"
+    }
 
     /**
      * Mirror directory of [originalParent] under [mirrorName], e.g.

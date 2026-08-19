@@ -9,8 +9,10 @@ import androidx.room.RoomDatabase
         MediaItemEntity::class,
         WorkQueueEntity::class,
         ProtectedFolderEntity::class,
+        TagEntity::class,
+        MediaTagEntity::class,
     ],
-    version = 4, // v4: protected folders (pre-release, destructive migration)
+    version = 5, // v5: tags + media_tags (pre-release, destructive migration)
     exportSchema = false,
 )
 abstract class BoxpixDatabase : RoomDatabase() {
@@ -18,4 +20,5 @@ abstract class BoxpixDatabase : RoomDatabase() {
     abstract fun mediaDao(): MediaDao
     abstract fun workQueueDao(): WorkQueueDao
     abstract fun protectedFolderDao(): ProtectedFolderDao
+    abstract fun tagDao(): TagDao
 }

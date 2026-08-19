@@ -79,6 +79,10 @@ dependencies {
     implementation(libs.media3.exoplayer)
     implementation(libs.media3.ui)
 
+    // XMP write-through (validated by docs/spike-xmp.md)
+    implementation(libs.commons.imaging)
+    implementation(libs.adobe.xmpcore)
+
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.coroutines.android)
 
@@ -98,9 +102,6 @@ dependencies {
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.ktor.client.mock)
 
-    // XMP spike (androidTest only — candidate libs under evaluation, not prod deps)
     androidTestImplementation(libs.androidx.test.ext.junit)
     androidTestImplementation(libs.androidx.test.runner)
-    androidTestImplementation(libs.commons.imaging)
-    androidTestImplementation(libs.adobe.xmpcore)
 }

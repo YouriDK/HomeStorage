@@ -9,6 +9,7 @@ import androidx.datastore.preferences.preferencesDataStore
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -46,6 +47,15 @@ class UiPrefsStore @Inject constructor(
         context.uiPrefsDataStore.edit { it[sortKey(folderPathB64)] = order.name }
     }
 
+    /** Stable per-installation identity, feeds the tags journal's who/what/when. */
+    suspend fun deviceId(): String {
+        val existing = context.uiPrefsDataStore.data.map { it[KEY_DEVICE_ID] }.first()
+        if (existing != null) return existing
+        val generated = "${android.os.Build.MODEL.replace(' ', '_')}-${java.util.UUID.randomUUID().toString().take(8)}"
+        context.uiPrefsDataStore.edit { it[KEY_DEVICE_ID] = generated }
+        return generated
+    }
+
     /** Debug builds read this to pick the provider; release ignores it entirely. */
     val useFakeProvider: Flow<Boolean> = context.uiPrefsDataStore.data
         .map { it[KEY_USE_FAKE] ?: true }
@@ -64,5 +74,6 @@ class UiPrefsStore @Inject constructor(
 
         private val KEY_GRID_COLUMNS = intPreferencesKey("grid_columns")
         private val KEY_USE_FAKE = booleanPreferencesKey("use_fake_provider")
+        private val KEY_DEVICE_ID = stringPreferencesKey("device_id")
     }
 }

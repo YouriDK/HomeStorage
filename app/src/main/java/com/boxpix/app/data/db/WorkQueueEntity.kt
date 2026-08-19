@@ -17,6 +17,7 @@ data class WorkQueueEntity(
 ) {
     companion object {
         const val TYPE_THUMB = "THUMB"
+        const val TYPE_XMP = "XMP"
         const val STATUS_PENDING = "PENDING"
         const val STATUS_DONE = "DONE"
         const val STATUS_FAILED = "FAILED"
