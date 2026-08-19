@@ -85,6 +85,18 @@
     <string name="viewer_video_fake_note">Video playback streams from the real Freebox — switch off fake data to play.</string>
     <string name="viewer_share_title">Share</string>
 
+    <!-- Downloads -->
+    <string name="download_channel">Downloads</string>
+    <string name="download_progress">Saving %1$s (%2$d of %3$d)</string>
+    <plurals name="download_done">
+        <item quantity="one">%1$d file saved to Downloads</item>
+        <item quantity="other">%1$d files saved to Downloads</item>
+    </plurals>
+    <string name="viewer_menu_save">Save to device</string>
+    <string name="download_confirm_title">Download over mobile data?</string>
+    <string name="download_confirm_message">%1$s will be downloaded over a metered connection.</string>
+    <string name="dialog_download">Download</string>
+
     <!-- Worker (M7) -->
     <string name="worker_channel">Boxpix worker</string>
     <string name="worker_notif_starting">Starting…</string>

@@ -1,5 +1,9 @@
 package com.boxpix.app.di
 
+import com.boxpix.app.data.download.AndroidDeviceSaver
+import com.boxpix.app.data.download.AndroidDownloadNotifier
+import com.boxpix.app.data.download.DeviceSaver
+import com.boxpix.app.data.download.DownloadNotifier
 import com.boxpix.app.data.freebox.auth.FreeboxSessionManager
 import com.boxpix.app.data.media.AndroidMediaProcessor
 import com.boxpix.app.data.media.AndroidVideoFrameExtractor
@@ -66,4 +70,12 @@ object AppModule {
     @Singleton
     fun streamingAccess(sessions: FreeboxSessionManager): StreamingAccess =
         StreamingAccess { sessions.streamingAccess().getOrNull() }
+
+    @Provides
+    @Singleton
+    fun deviceSaver(impl: AndroidDeviceSaver): DeviceSaver = impl
+
+    @Provides
+    @Singleton
+    fun downloadNotifier(impl: AndroidDownloadNotifier): DownloadNotifier = impl
 }

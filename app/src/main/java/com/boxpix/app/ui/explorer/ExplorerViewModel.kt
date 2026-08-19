@@ -12,6 +12,7 @@ import com.boxpix.app.data.storage.StorageEntry
 import com.boxpix.app.data.db.MediaDao
 import com.boxpix.app.data.db.MediaItemEntity
 import com.boxpix.app.data.db.TagWithCount
+import com.boxpix.app.data.download.DownloadRequester
 import com.boxpix.app.data.net.ConnectionMode
 import com.boxpix.app.data.net.EndpointResolver
 import com.boxpix.app.data.storage.ProtectionRepository
@@ -53,7 +54,38 @@ class ExplorerViewModel @Inject constructor(
     private val searchContext: SearchContext,
     private val mediaDao: MediaDao,
     private val resolver: EndpointResolver,
+    private val downloadRequester: DownloadRequester,
 ) : ViewModel() {
+
+    private val _downloadConfirm =
+        MutableStateFlow<DownloadRequester.Outcome.NeedsConfirmation?>(null)
+    val downloadConfirm: StateFlow<DownloadRequester.Outcome.NeedsConfirmation?> =
+        _downloadConfirm.asStateFlow()
+
+    /** Save the selected files (folders skipped) to the device's Downloads. */
+    fun downloadSelected() {
+        val medias = selectedEntries().filterNot { it.isDirectory }.map { it.toMediaRef() }
+        if (medias.isEmpty()) return
+        viewModelScope.launch {
+            when (val outcome = downloadRequester.request(medias)) {
+                is DownloadRequester.Outcome.NeedsConfirmation -> _downloadConfirm.value = outcome
+                DownloadRequester.Outcome.Enqueued -> clearSelection()
+            }
+        }
+    }
+
+    fun confirmDownload() {
+        val pending = _downloadConfirm.value ?: return
+        _downloadConfirm.value = null
+        viewModelScope.launch {
+            downloadRequester.enqueue(pending.items)
+            clearSelection()
+        }
+    }
+
+    fun dismissDownloadConfirm() {
+        _downloadConfirm.value = null
+    }
 
     data class FolderRef(val pathB64: String, val displayPath: String, val name: String)
 

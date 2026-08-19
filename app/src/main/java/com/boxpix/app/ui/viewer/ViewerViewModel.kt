@@ -9,6 +9,7 @@ import com.boxpix.app.core.FbxResult
 import com.boxpix.app.core.FreeboxError
 import com.boxpix.app.data.freebox.auth.FreeboxSessionManager
 import com.boxpix.app.data.db.TagWithCount
+import com.boxpix.app.data.download.DownloadRequester
 import com.boxpix.app.data.storage.RootLocator
 import com.boxpix.app.data.storage.StorageEntry
 import com.boxpix.app.data.storage.StorageEnv
@@ -43,8 +44,31 @@ class ViewerViewModel @Inject constructor(
     private val env: StorageEnv,
     private val rootLocator: RootLocator,
     private val tagRepository: TagRepository,
+    private val downloadRequester: DownloadRequester,
     @ApplicationContext private val context: Context,
 ) : ViewModel() {
+
+    private val _downloadConfirm = MutableStateFlow<DownloadRequester.Outcome.NeedsConfirmation?>(null)
+    val downloadConfirm: StateFlow<DownloadRequester.Outcome.NeedsConfirmation?> = _downloadConfirm.asStateFlow()
+
+    fun saveToDevice(item: MediaRef) {
+        viewModelScope.launch {
+            when (val outcome = downloadRequester.request(listOf(item))) {
+                is DownloadRequester.Outcome.NeedsConfirmation -> _downloadConfirm.value = outcome
+                DownloadRequester.Outcome.Enqueued -> Unit
+            }
+        }
+    }
+
+    fun confirmDownload() {
+        val pending = _downloadConfirm.value ?: return
+        _downloadConfirm.value = null
+        viewModelScope.launch { downloadRequester.enqueue(pending.items) }
+    }
+
+    fun dismissDownloadConfirm() {
+        _downloadConfirm.value = null
+    }
 
     /** Streaming coordinates for ExoPlayer, null when the fake provider is active. */
     data class VideoAccess(val baseUrl: String, val headers: Map<String, String>)

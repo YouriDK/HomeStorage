@@ -38,6 +38,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.Lock
@@ -146,6 +147,7 @@ fun ExplorerScreen(
                     onClose = viewModel::clearSelection,
                     onRename = { showRenameDialog = true },
                     onTag = { showTagPicker = true },
+                    onDownload = viewModel::downloadSelected,
                     onMove = viewModel::openMoveSheet,
                     onTrash = { showTrashConfirm = true },
                     onSelectAll = viewModel::selectAll,
@@ -211,6 +213,15 @@ fun ExplorerScreen(
             onToggle = { tag -> viewModel.applyTagToSelection(tag) },
             onCreate = { name -> viewModel.createTagAndApply(name) },
             onDismiss = { showTagPicker = false },
+        )
+    }
+
+    val downloadConfirm by viewModel.downloadConfirm.collectAsStateWithLifecycle()
+    downloadConfirm?.let { pending ->
+        com.boxpix.app.ui.common.DownloadConfirmDialog(
+            totalBytes = pending.totalBytes,
+            onConfirm = viewModel::confirmDownload,
+            onDismiss = viewModel::dismissDownloadConfirm,
         )
     }
 
@@ -476,6 +487,7 @@ private fun SelectionBar(
     onClose: () -> Unit,
     onRename: () -> Unit,
     onTag: () -> Unit,
+    onDownload: () -> Unit,
     onMove: () -> Unit,
     onTrash: () -> Unit,
     onSelectAll: () -> Unit,
@@ -525,6 +537,14 @@ private fun SelectionBar(
             Icon(
                 Icons.Outlined.Sell,
                 contentDescription = stringResource(R.string.explorer_action_tag),
+                tint = colors.dim,
+                modifier = Modifier.size(22.dp),
+            )
+        }
+        IconButton(onClick = onDownload) {
+            Icon(
+                Icons.Outlined.Download,
+                contentDescription = stringResource(R.string.viewer_menu_save),
                 tint = colors.dim,
                 modifier = Modifier.size(22.dp),
             )

@@ -46,6 +46,9 @@ class BoxpixApplication : Application(), Configuration.Provider, ImageLoaderFact
     @Inject
     lateinit var xmpScheduler: XmpScheduler
 
+    @Inject
+    lateinit var downloadScheduler: com.boxpix.app.data.download.DownloadScheduler
+
     override val workManagerConfiguration: Configuration
         get() = Configuration.Builder().setWorkerFactory(workerFactory).build()
 
@@ -85,5 +88,6 @@ class BoxpixApplication : Application(), Configuration.Provider, ImageLoaderFact
 
         reconcilerScheduler.start()
         xmpScheduler.start()
+        downloadScheduler.start()
     }
 }

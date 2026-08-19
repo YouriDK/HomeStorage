@@ -172,6 +172,10 @@ fun ViewerScreen(
                     overflowOpen = false
                     clipboard.setText(AnnotatedString(current.displayPath))
                 },
+                onSave = {
+                    overflowOpen = false
+                    viewModel.saveToDevice(current)
+                },
                 onMove = {
                     overflowOpen = false
                     viewModel.openMoveSheet()
@@ -225,6 +229,15 @@ fun ViewerScreen(
                 onInfo = { viewModel.setInfoOpen(true) },
             )
         }
+    }
+
+    val downloadConfirm by viewModel.downloadConfirm.collectAsStateWithLifecycle()
+    downloadConfirm?.let { pending ->
+        com.boxpix.app.ui.common.DownloadConfirmDialog(
+            totalBytes = pending.totalBytes,
+            onConfirm = viewModel::confirmDownload,
+            onDismiss = viewModel::dismissDownloadConfirm,
+        )
     }
 
     if (showTrashConfirm) {
@@ -382,6 +395,7 @@ private fun ViewerTopBar(
     onDismissOverflow: () -> Unit,
     onRename: () -> Unit,
     onCopyPath: () -> Unit,
+    onSave: () -> Unit,
     onMove: () -> Unit,
     onTrash: () -> Unit,
     onShare: () -> Unit,
@@ -439,6 +453,10 @@ private fun ViewerTopBar(
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.viewer_menu_copy_path)) },
                     onClick = onCopyPath,
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.viewer_menu_save)) },
+                    onClick = onSave,
                 )
                 // Videos have no bottom action bar (the player controller owns
                 // that edge): file actions live here instead.

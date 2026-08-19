@@ -21,6 +21,9 @@ data class WorkQueueEntity(
 
         /** Worker-only (SPEC M7): the daily phone never processes these. */
         const val TYPE_VIDEO_THUMB = "VIDEO_THUMB"
+
+        /** Save-to-device jobs — the queue IS the resume mechanism. */
+        const val TYPE_DOWNLOAD = "DOWNLOAD"
         const val STATUS_PENDING = "PENDING"
         const val STATUS_DONE = "DONE"
         const val STATUS_FAILED = "FAILED"
