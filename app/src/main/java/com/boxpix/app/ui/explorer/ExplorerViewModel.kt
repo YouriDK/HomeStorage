@@ -12,6 +12,8 @@ import com.boxpix.app.data.storage.StorageEntry
 import com.boxpix.app.data.storage.StorageEnv
 import com.boxpix.app.data.storage.StorageProvider
 import com.boxpix.app.data.trash.TrashRepository
+import com.boxpix.app.ui.viewer.ViewerSession
+import com.boxpix.app.ui.viewer.toMediaRef
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -33,6 +35,7 @@ class ExplorerViewModel @Inject constructor(
     private val settings: SettingsStore,
     private val env: StorageEnv,
     private val uiPrefs: UiPrefsStore,
+    private val viewerSession: ViewerSession,
 ) : ViewModel() {
 
     data class FolderRef(val pathB64: String, val displayPath: String, val name: String)
@@ -203,6 +206,15 @@ class ExplorerViewModel @Inject constructor(
     }
 
     fun dismissError() = _state.update { it.copy(error = null) }
+
+    /** Stages the viewer on the current folder's medias, starting at the tapped one. */
+    fun stageViewer(entry: StorageEntry) {
+        val medias = _state.value.media
+        viewerSession.open(
+            medias.map { it.toMediaRef() },
+            medias.indexOfFirst { it.pathB64 == entry.pathB64 },
+        )
+    }
 
     // Move sheet
 

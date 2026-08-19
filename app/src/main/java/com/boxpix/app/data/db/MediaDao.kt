@@ -35,10 +35,16 @@ interface MediaDao {
     @Query("SELECT COUNT(*) FROM media_items WHERE providerId = :providerId")
     fun count(providerId: String): Flow<Int>
 
-    /** Timeline source (M4): newest capture first, unread dates last. */
+    /**
+     * Timeline source: photos and videos, newest capture first; rows without an
+     * EXIF date fall back to their mtime so nothing disappears from the tab.
+     */
     @Query(
-        "SELECT * FROM media_items WHERE providerId = :providerId AND isVideo = 0 " +
-            "ORDER BY takenAtEpochSeconds IS NULL, takenAtEpochSeconds DESC",
+        "SELECT * FROM media_items WHERE providerId = :providerId " +
+            "ORDER BY COALESCE(takenAtEpochSeconds, mtime) DESC",
     )
     fun byCaptureDate(providerId: String): Flow<List<MediaItemEntity>>
+
+    @Query("SELECT * FROM media_items WHERE providerId = :providerId AND pathB64 = :pathB64")
+    suspend fun byPath(providerId: String, pathB64: String): MediaItemEntity?
 }

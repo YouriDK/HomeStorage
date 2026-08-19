@@ -35,11 +35,9 @@ import androidx.compose.material.icons.automirrored.outlined.DriveFileMove
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.outlined.Add
-import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Edit
-import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.SelectAll
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.DropdownMenu
@@ -56,8 +54,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
@@ -79,6 +75,8 @@ import com.boxpix.app.data.prefs.SortOrder
 import com.boxpix.app.data.storage.StorageEntry
 import com.boxpix.app.ui.common.EmptyFolderView
 import com.boxpix.app.ui.common.ErrorView
+import com.boxpix.app.ui.common.FloatingTabBar
+import com.boxpix.app.ui.common.MainTab
 import com.boxpix.app.ui.common.GridSkeleton
 import com.boxpix.app.ui.common.PlaceholderTones
 import com.boxpix.app.ui.common.ThumbRequest
@@ -91,6 +89,8 @@ import com.boxpix.app.ui.theme.boxpixColors
 @Composable
 fun ExplorerScreen(
     onOpenSettings: () -> Unit,
+    onOpenGallery: () -> Unit,
+    onOpenViewer: () -> Unit,
     viewModel: ExplorerViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -160,12 +160,16 @@ fun ExplorerScreen(
 
                 state.folders.isEmpty() && state.media.isEmpty() -> EmptyFolderView()
 
-                else -> FolderContent(state = state, viewModel = viewModel)
+                else -> FolderContent(state = state, viewModel = viewModel, onOpenViewer = onOpenViewer)
             }
         }
 
         if (!state.selectionMode) {
-            FloatingTabBar(modifier = Modifier.align(Alignment.BottomCenter))
+            FloatingTabBar(
+                active = MainTab.EXPLORER,
+                onSelect = { tab -> if (tab == MainTab.GALLERY) onOpenGallery() },
+                modifier = Modifier.align(Alignment.BottomCenter),
+            )
         }
     }
 
@@ -544,6 +548,7 @@ private fun AlbumCell(
 private fun FolderContent(
     state: ExplorerViewModel.UiState,
     viewModel: ExplorerViewModel,
+    onOpenViewer: () -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
         if (state.albums.isNotEmpty()) {
@@ -562,7 +567,12 @@ private fun FolderContent(
         } else if (state.media.isEmpty()) {
             EmptyFolderView(Modifier.weight(1f))
         } else {
-            MediaGrid(state = state, viewModel = viewModel, modifier = Modifier.weight(1f))
+            MediaGrid(
+                state = state,
+                viewModel = viewModel,
+                onOpenViewer = onOpenViewer,
+                modifier = Modifier.weight(1f),
+            )
         }
     }
 }
@@ -596,6 +606,7 @@ private fun SubfolderChip(album: AlbumUi, viewModel: ExplorerViewModel) {
 private fun MediaGrid(
     state: ExplorerViewModel.UiState,
     viewModel: ExplorerViewModel,
+    onOpenViewer: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LazyVerticalGrid(
@@ -613,6 +624,7 @@ private fun MediaGrid(
                 selected = state.media[index].pathB64 in state.selection,
                 selectionActive = state.selectionMode,
                 viewModel = viewModel,
+                onOpenViewer = onOpenViewer,
             )
         }
     }
@@ -625,6 +637,7 @@ private fun MediaCell(
     selected: Boolean,
     selectionActive: Boolean,
     viewModel: ExplorerViewModel,
+    onOpenViewer: () -> Unit,
 ) {
     val colors = boxpixColors
     val darkTheme = isSystemInDarkTheme()
@@ -644,8 +657,14 @@ private fun MediaCell(
                 },
             )
             .combinedClickable(
-                // Tap only toggles inside selection mode; in M4 it opens the viewer.
-                onClick = { if (selectionActive) viewModel.toggleSelection(entry.pathB64) },
+                onClick = {
+                    if (selectionActive) {
+                        viewModel.toggleSelection(entry.pathB64)
+                    } else {
+                        viewModel.stageViewer(entry)
+                        onOpenViewer()
+                    }
+                },
                 onLongClick = { viewModel.startSelection(entry.pathB64) },
             ),
     ) {
@@ -700,67 +719,6 @@ private fun SelectionCheck(modifier: Modifier = Modifier) {
             contentDescription = null,
             tint = colors.bg,
             modifier = Modifier.size(12.dp),
-        )
-    }
-}
-
-/**
- * Bottom floating 2-tab pill from the design. The Gallery tab (Timeline) ships
- * with M4 — until then it is shown inert at reduced opacity, like the design's
- * disabled actions.
- */
-@Composable
-private fun FloatingTabBar(modifier: Modifier = Modifier) {
-    val colors = boxpixColors
-    val shape = RoundedCornerShape(18.dp)
-    Row(
-        modifier = modifier
-            .padding(bottom = 16.dp)
-            .shadow(14.dp, shape, clip = false)
-            .background(colors.surface, shape)
-            .border(1.dp, colors.hairlineStrong, shape)
-            .padding(horizontal = 10.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        TabPillItem(
-            icon = Icons.Outlined.Folder,
-            label = stringResource(R.string.tab_explorer),
-            active = true,
-        )
-        Spacer(Modifier.size(18.dp))
-        TabPillItem(
-            icon = Icons.Outlined.CalendarMonth,
-            label = stringResource(R.string.tab_gallery),
-            active = false,
-            modifier = Modifier.alpha(0.45f),
-        )
-    }
-}
-
-@Composable
-private fun TabPillItem(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    label: String,
-    active: Boolean,
-    modifier: Modifier = Modifier,
-) {
-    val colors = boxpixColors
-    Row(
-        modifier = modifier.padding(horizontal = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(
-            icon,
-            contentDescription = null,
-            tint = if (active) colors.accent else colors.dim,
-            modifier = Modifier.size(20.dp),
-        )
-        Spacer(Modifier.size(7.dp))
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodySmall,
-            fontWeight = if (active) FontWeight.Medium else FontWeight.Normal,
-            color = if (active) colors.accent else colors.dim,
         )
     }
 }

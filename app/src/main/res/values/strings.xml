@@ -59,6 +59,26 @@
     <string name="tab_explorer">Explorer</string>
     <string name="tab_gallery">Gallery</string>
 
+    <!-- Timeline -->
+    <string name="timeline_empty">Nothing indexed yet — browse some folders or let the sync pass run.</string>
+
+    <!-- Viewer -->
+    <string name="viewer_action_tag">Tag</string>
+    <string name="viewer_action_favourite">Favourite</string>
+    <string name="viewer_action_move">Move</string>
+    <string name="viewer_action_trash">Trash</string>
+    <string name="viewer_action_share">Share</string>
+    <string name="viewer_action_info">Info</string>
+    <string name="viewer_menu_rename">Rename</string>
+    <string name="viewer_menu_copy_path">Copy path</string>
+    <string name="viewer_info_title">Info</string>
+    <string name="viewer_info_taken">Taken</string>
+    <string name="viewer_info_size">Size</string>
+    <string name="viewer_info_path">Path</string>
+    <string name="viewer_info_close">Close</string>
+    <string name="viewer_video_fake_note">Video playback streams from the real Freebox — switch off fake data to play.</string>
+    <string name="viewer_share_title">Share</string>
+
     <!-- Dialogs -->
     <string name="dialog_new_folder_title">New folder</string>
     <string name="dialog_rename_title">Rename</string>

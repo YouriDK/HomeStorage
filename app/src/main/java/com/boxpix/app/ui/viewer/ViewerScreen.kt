@@ -1,0 +1,491 @@
+package com.boxpix.app.ui.viewer
+
+import android.content.Intent
+import androidx.annotation.OptIn
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.DriveFileMove
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.FavoriteBorder
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material.icons.outlined.Sell
+import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.ui.PlayerView
+import coil.compose.AsyncImage
+import coil.compose.SubcomposeAsyncImage
+import com.boxpix.app.R
+import com.boxpix.app.ui.common.HdRequest
+import com.boxpix.app.ui.common.ThumbRequest
+import com.boxpix.app.ui.common.formatBytes
+import com.boxpix.app.ui.common.formatDate
+import com.boxpix.app.ui.common.message
+import com.boxpix.app.ui.explorer.MoveSheet
+import com.boxpix.app.ui.explorer.NameDialog
+import com.boxpix.app.ui.theme.boxpixColors
+
+/** Screen 05 — always a dark room, whatever the app theme. */
+@Composable
+fun ViewerScreen(
+    onBack: () -> Unit,
+    viewModel: ViewerViewModel = hiltViewModel(),
+) {
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    val shareUri by viewModel.shareUri.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val clipboard = LocalClipboardManager.current
+
+    if (state.items.isEmpty()) {
+        LaunchedEffect(Unit) { onBack() }
+        return
+    }
+
+    val pagerState = rememberPagerState(initialPage = state.startIndex) { state.items.size }
+    val current = state.items[pagerState.currentPage.coerceIn(0, state.items.lastIndex)]
+
+    var showRenameDialog by remember { mutableStateOf(false) }
+    var overflowOpen by remember { mutableStateOf(false) }
+
+    LaunchedEffect(shareUri) {
+        shareUri?.let { uri ->
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = current.mimeType ?: "*/*"
+                putExtra(Intent.EXTRA_STREAM, uri)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            context.startActivity(Intent.createChooser(intent, null))
+            viewModel.consumeShare()
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black),
+    ) {
+        HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
+            val item = state.items[page]
+            MediaPage(
+                item = item,
+                isCurrent = page == pagerState.currentPage,
+                streamingUrl = viewModel.streamingUrl(item),
+                headers = state.videoAccess?.headers.orEmpty(),
+                onTap = viewModel::toggleChrome,
+            )
+        }
+
+        AnimatedVisibility(
+            visible = state.chromeVisible,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier.align(Alignment.TopCenter),
+        ) {
+            ViewerTopBar(
+                item = current,
+                onBack = onBack,
+                onOverflow = { overflowOpen = true },
+                overflowOpen = overflowOpen,
+                onDismissOverflow = { overflowOpen = false },
+                onRename = {
+                    overflowOpen = false
+                    showRenameDialog = true
+                },
+                onCopyPath = {
+                    overflowOpen = false
+                    clipboard.setText(AnnotatedString(current.displayPath))
+                },
+            )
+        }
+
+        state.error?.let { error ->
+            Text(
+                text = error.message(),
+                style = MaterialTheme.typography.bodySmall,
+                color = Color.White,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 110.dp)
+                    .background(Color(0xCC16161A), RoundedCornerShape(10.dp))
+                    .clickable { viewModel.dismissError() }
+                    .padding(horizontal = 14.dp, vertical = 8.dp),
+            )
+        }
+
+        AnimatedVisibility(
+            visible = state.chromeVisible,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding(),
+        ) {
+            ViewerActionBar(
+                onMove = viewModel::openMoveSheet,
+                onTrash = { viewModel.trash(current) },
+                onShare = { viewModel.share(current) },
+                onInfo = { viewModel.setInfoOpen(true) },
+            )
+        }
+    }
+
+    if (showRenameDialog) {
+        NameDialog(
+            title = stringResource(R.string.dialog_rename_title),
+            initialValue = current.name,
+            confirmLabel = stringResource(R.string.dialog_rename),
+            onConfirm = { name ->
+                showRenameDialog = false
+                if (name.isNotBlank()) viewModel.rename(current, name)
+            },
+            onDismiss = { showRenameDialog = false },
+        )
+    }
+
+    if (state.move.visible) {
+        MoveSheet(
+            move = state.move,
+            selectionCount = 1,
+            onBrowseInto = viewModel::moveBrowseInto,
+            onBrowseUp = viewModel::moveBrowseUp,
+            onConfirm = { viewModel.confirmMove(current) },
+            onDismiss = viewModel::closeMoveSheet,
+        )
+    }
+
+    if (state.infoOpen) {
+        InfoSheet(item = current, onClose = { viewModel.setInfoOpen(false) })
+    }
+}
+
+@Composable
+private fun MediaPage(
+    item: MediaRef,
+    isCurrent: Boolean,
+    streamingUrl: String?,
+    headers: Map<String, String>,
+    onTap: () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onTap,
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (!item.isVideo) {
+            // Progressive: blurred thumbnail immediately, HD once downloaded.
+            SubcomposeAsyncImage(
+                model = HdRequest(item.pathB64, item.mtime),
+                contentDescription = item.name,
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.fillMaxSize(),
+                loading = {
+                    AsyncImage(
+                        model = ThumbRequest(item.pathB64, item.displayPath, item.mtime),
+                        contentDescription = null,
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .blur(8.dp),
+                    )
+                },
+            )
+        } else if (isCurrent && streamingUrl != null) {
+            VideoPlayer(url = streamingUrl, headers = headers, modifier = Modifier.fillMaxSize())
+        } else {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(
+                    Icons.Filled.PlayArrow,
+                    contentDescription = null,
+                    tint = Color.White.copy(alpha = 0.7f),
+                    modifier = Modifier.size(66.dp),
+                )
+                if (streamingUrl == null) {
+                    Text(
+                        text = stringResource(R.string.viewer_video_fake_note),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.White.copy(alpha = 0.6f),
+                        modifier = Modifier.padding(horizontal = 40.dp, vertical = 12.dp),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@OptIn(UnstableApi::class)
+@Composable
+private fun VideoPlayer(url: String, headers: Map<String, String>, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val player = remember(url) {
+        val dataSourceFactory = DefaultHttpDataSource.Factory().setDefaultRequestProperties(headers)
+        ExoPlayer.Builder(context)
+            .setMediaSourceFactory(DefaultMediaSourceFactory(dataSourceFactory))
+            .build()
+            .apply {
+                setMediaItem(androidx.media3.common.MediaItem.fromUri(url))
+                prepare()
+            }
+    }
+    androidx.compose.runtime.DisposableEffect(player) {
+        onDispose { player.release() }
+    }
+    AndroidView(
+        factory = { viewContext ->
+            PlayerView(viewContext).apply {
+                this.player = player
+                useController = true
+                setBackgroundColor(android.graphics.Color.BLACK)
+            }
+        },
+        modifier = modifier,
+    )
+}
+
+@Composable
+private fun ViewerTopBar(
+    item: MediaRef,
+    onBack: () -> Unit,
+    onOverflow: () -> Unit,
+    overflowOpen: Boolean,
+    onDismissOverflow: () -> Unit,
+    onRename: () -> Unit,
+    onCopyPath: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(
+                Brush.verticalGradient(
+                    listOf(Color.Black.copy(alpha = 0.74f), Color.Transparent),
+                ),
+            )
+            .statusBarsPadding()
+            .height(56.dp)
+            .padding(horizontal = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        IconButton(onClick = onBack) {
+            Icon(
+                Icons.AutoMirrored.Outlined.ArrowBack,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(22.dp),
+            )
+        }
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = item.name,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium,
+                color = Color.White,
+                maxLines = 1,
+            )
+            Text(
+                text = formatDate(item.takenAtEpochSeconds ?: item.mtime),
+                fontSize = 11.5.sp,
+                color = Color.White.copy(alpha = 0.6f),
+            )
+        }
+        Box {
+            IconButton(onClick = onOverflow) {
+                Icon(
+                    Icons.Outlined.MoreVert,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(22.dp),
+                )
+            }
+            DropdownMenu(expanded = overflowOpen, onDismissRequest = onDismissOverflow) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.viewer_menu_rename)) },
+                    onClick = onRename,
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.viewer_menu_copy_path)) },
+                    onClick = onCopyPath,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ViewerActionBar(
+    onMove: () -> Unit,
+    onTrash: () -> Unit,
+    onShare: () -> Unit,
+    onInfo: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .padding(bottom = 14.dp)
+            .background(Color(0xD10E0E10), RoundedCornerShape(18.dp))
+            .border(1.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(18.dp))
+            .padding(horizontal = 10.dp, vertical = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        // Tag and Favourite ship with M5 — inert at reduced opacity, per the design's
+        // treatment of unavailable actions.
+        ViewerAction(Icons.Outlined.Sell, stringResource(R.string.viewer_action_tag), enabled = false) {}
+        ViewerAction(Icons.Outlined.FavoriteBorder, stringResource(R.string.viewer_action_favourite), enabled = false) {}
+        ViewerAction(Icons.AutoMirrored.Outlined.DriveFileMove, stringResource(R.string.viewer_action_move), onClick = onMove)
+        ViewerAction(Icons.Outlined.Delete, stringResource(R.string.viewer_action_trash), onClick = onTrash)
+        ViewerAction(Icons.Outlined.Share, stringResource(R.string.viewer_action_share), onClick = onShare)
+        ViewerAction(Icons.Outlined.Info, stringResource(R.string.viewer_action_info), onClick = onInfo)
+    }
+}
+
+@Composable
+private fun ViewerAction(
+    icon: ImageVector,
+    label: String,
+    enabled: Boolean = true,
+    onClick: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .alpha(if (enabled) 1f else 0.45f)
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Icon(icon, contentDescription = label, tint = Color.White, modifier = Modifier.size(22.dp))
+        Spacer(Modifier.height(3.dp))
+        Text(text = label, fontSize = 9.5.sp, color = Color.White.copy(alpha = 0.8f))
+    }
+}
+
+@androidx.compose.runtime.Composable
+@ExperimentalMaterial3Api
+private fun InfoSheetScaffold(onClose: () -> Unit, content: @Composable () -> Unit) {
+    val colors = boxpixColors
+    ModalBottomSheet(
+        onDismissRequest = onClose,
+        containerColor = colors.elevated,
+        shape = RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp),
+    ) {
+        content()
+    }
+}
+
+@kotlin.OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun InfoSheet(item: MediaRef, onClose: () -> Unit) {
+    val colors = boxpixColors
+    InfoSheetScaffold(onClose = onClose) {
+        Column(modifier = Modifier.padding(horizontal = 18.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = stringResource(R.string.viewer_info_title),
+                    style = MaterialTheme.typography.titleLarge,
+                    color = colors.text,
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(onClick = onClose) {
+                    Text(stringResource(R.string.viewer_info_close), color = colors.accent)
+                }
+            }
+            Spacer(Modifier.height(6.dp))
+            InfoRow(
+                label = stringResource(R.string.viewer_info_taken),
+                value = formatDate(item.takenAtEpochSeconds ?: item.mtime),
+            )
+            InfoRow(
+                label = stringResource(R.string.viewer_info_size),
+                value = formatBytes(item.sizeBytes),
+            )
+            InfoRow(
+                label = stringResource(R.string.viewer_info_path),
+                value = item.displayPath,
+                monospace = true,
+            )
+            Spacer(Modifier.height(24.dp))
+        }
+    }
+}
+
+@Composable
+private fun InfoRow(label: String, value: String, monospace: Boolean = false) {
+    val colors = boxpixColors
+    Row(modifier = Modifier.padding(vertical = 8.dp)) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodySmall,
+            color = colors.dim,
+            modifier = Modifier.width(96.dp),
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodySmall,
+            color = colors.text,
+            fontFamily = if (monospace) FontFamily.Monospace else null,
+        )
+    }
+}

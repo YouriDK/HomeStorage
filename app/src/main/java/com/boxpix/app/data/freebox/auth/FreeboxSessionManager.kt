@@ -59,6 +59,22 @@ class FreeboxSessionManager @Inject constructor(
         permissions = emptyMap()
     }
 
+    /**
+     * Base URL + session token for direct streaming (ExoPlayer hits /dl/ itself
+     * with the X-Fbx-App-Auth header). Logs in first when no session is open.
+     */
+    suspend fun streamingAccess(): FbxResult<Pair<String, String>> {
+        val endpoint = when (val resolved = resolver.resolve()) {
+            is FbxResult.Ok -> resolved.value
+            is FbxResult.Err -> return resolved
+        }
+        val token = sessionToken ?: when (val login = login(endpoint.base)) {
+            is FbxResult.Ok -> login.value
+            is FbxResult.Err -> return login
+        }
+        return FbxResult.Ok(endpoint.base to token)
+    }
+
     private suspend fun login(base: String): FbxResult<String> = loginMutex.withLock {
         val appToken = tokenStore.appToken
         if (appToken == null) {

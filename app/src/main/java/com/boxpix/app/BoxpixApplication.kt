@@ -11,6 +11,8 @@ import androidx.work.WorkManager
 import coil.ImageLoader
 import coil.ImageLoaderFactory
 import com.boxpix.app.data.media.ReconcilerScheduler
+import com.boxpix.app.ui.common.HdFetcher
+import com.boxpix.app.ui.common.HdKeyer
 import com.boxpix.app.ui.common.ThumbFetcher
 import com.boxpix.app.ui.common.ThumbKeyer
 import com.boxpix.app.work.ReconcilerWorker
@@ -32,6 +34,12 @@ class BoxpixApplication : Application(), Configuration.Provider, ImageLoaderFact
     lateinit var thumbKeyer: ThumbKeyer
 
     @Inject
+    lateinit var hdFetcherFactory: HdFetcher.Factory
+
+    @Inject
+    lateinit var hdKeyer: HdKeyer
+
+    @Inject
     lateinit var reconcilerScheduler: ReconcilerScheduler
 
     override val workManagerConfiguration: Configuration
@@ -42,6 +50,8 @@ class BoxpixApplication : Application(), Configuration.Provider, ImageLoaderFact
             .components {
                 add(thumbKeyer)
                 add(thumbFetcherFactory)
+                add(hdKeyer)
+                add(hdFetcherFactory)
             }
             .crossfade(true)
             .build()

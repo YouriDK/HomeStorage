@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Share hands the receiver a cached copy of the file, never a network path. -->
+<paths>
+    <cache-path name="shared" path="shared/" />
+</paths>

@@ -51,9 +51,12 @@ private class InMemoryMediaDao : MediaDao {
 
     override fun byCaptureDate(providerId: String) =
         store.map { map ->
-            map.values.filter { it.providerId == providerId && !it.isVideo }
-                .sortedWith(compareBy({ it.takenAtEpochSeconds == null }, { -(it.takenAtEpochSeconds ?: 0) }))
+            map.values.filter { it.providerId == providerId }
+                .sortedByDescending { it.takenAtEpochSeconds ?: it.mtime }
         }
+
+    override suspend fun byPath(providerId: String, pathB64: String) =
+        store.value[providerId to pathB64]
 
     fun all() = store.value.values.toList()
 }
