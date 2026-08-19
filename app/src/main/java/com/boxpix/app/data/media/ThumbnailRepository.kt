@@ -58,7 +58,7 @@ class ThumbnailRepository @Inject constructor(
                 val providerId = currentProviderId()
 
                 processor.readTakenAtEpochSeconds(original)?.let { takenAt ->
-                    mediaDao.setTakenAt(providerId, pathB64, takenAt)
+                    mediaDao.setTakenAtFromExif(providerId, pathB64, takenAt)
                 }
 
                 val thumb = processor.makeThumbnail(original) ?: return null

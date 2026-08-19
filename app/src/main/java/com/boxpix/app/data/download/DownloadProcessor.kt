@@ -31,6 +31,7 @@ class DownloadProcessor @Inject constructor(
     private val queueDao: WorkQueueDao,
     private val saver: DeviceSaver,
     private val notifier: DownloadNotifier,
+    private val progress: DownloadProgress,
     private val streaming: StreamingAccess,
     private val http: HttpClient,
     private val env: StorageEnv,
@@ -52,6 +53,7 @@ class DownloadProcessor @Inject constructor(
             jobs.forEachIndexed { index, job ->
                 val name = job.displayPath.trimEnd('/').substringAfterLast('/')
                 notifier.progress(name, index + 1, jobs.size)
+                progress.update(name, index + 1, jobs.size)
                 val ok = runCatching { downloadOne(job, name, useFake) }.getOrDefault(false)
                 if (ok) {
                     saved++
@@ -71,6 +73,7 @@ class DownloadProcessor @Inject constructor(
             }
             notifier.done(saved, failed)
         } finally {
+            progress.clear()
             mutex.unlock()
         }
     }

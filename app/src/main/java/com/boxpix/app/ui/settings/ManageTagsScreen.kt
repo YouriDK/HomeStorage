@@ -15,9 +15,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -45,6 +42,7 @@ import com.boxpix.app.data.db.TagWithCount
 import com.boxpix.app.data.tags.TagRepository
 import com.boxpix.app.ui.common.message
 import com.boxpix.app.ui.explorer.NameDialog
+import com.boxpix.app.ui.icons.Lucide
 import com.boxpix.app.ui.theme.boxpixColors
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -113,7 +111,7 @@ fun ManageTagsScreen(
         ) {
             IconButton(onClick = onBack) {
                 Icon(
-                    Icons.AutoMirrored.Outlined.ArrowBack,
+                    Lucide.ArrowLeft,
                     contentDescription = null,
                     tint = colors.text,
                     modifier = Modifier.size(22.dp),
@@ -164,7 +162,7 @@ fun ManageTagsScreen(
                     Box {
                         IconButton(onClick = { menuOpen = true }) {
                             Icon(
-                                Icons.Outlined.MoreVert,
+                                Lucide.EllipsisVertical,
                                 contentDescription = null,
                                 tint = colors.dim,
                                 modifier = Modifier.size(18.dp),

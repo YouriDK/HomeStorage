@@ -22,14 +22,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.Undo
-import androidx.compose.material.icons.outlined.Add
-import androidx.compose.material.icons.outlined.Close
-import androidx.compose.material.icons.outlined.Delete
-import androidx.compose.material.icons.outlined.Folder
-import androidx.compose.material.icons.outlined.KeyboardArrowDown
-import androidx.compose.material.icons.outlined.KeyboardArrowUp
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -66,6 +58,7 @@ import com.boxpix.app.ui.common.formatBytes
 import com.boxpix.app.ui.common.message
 import com.boxpix.app.ui.explorer.MoveSheet
 import com.boxpix.app.ui.explorer.ExplorerViewModel
+import com.boxpix.app.ui.icons.Lucide
 import com.boxpix.app.ui.theme.boxpixColors
 import kotlinx.coroutines.delay
 
@@ -101,7 +94,7 @@ fun SortModeScreen(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             IconButton(onClick = onBack) {
-                Icon(Icons.Outlined.Close, contentDescription = null, tint = colors.text, modifier = Modifier.size(22.dp))
+                Icon(Lucide.X, contentDescription = null, tint = colors.text, modifier = Modifier.size(22.dp))
             }
             Text(
                 text = stringResource(R.string.sort_title, state.folder?.name.orEmpty()),
@@ -116,7 +109,7 @@ fun SortModeScreen(
             )
             IconButton(onClick = viewModel::undo, enabled = state.lastAction != null) {
                 Icon(
-                    Icons.AutoMirrored.Outlined.Undo,
+                    Lucide.Undo2,
                     contentDescription = null,
                     tint = if (state.lastAction != null) colors.accent else colors.faint,
                     modifier = Modifier.size(20.dp),
@@ -216,6 +209,12 @@ fun SortModeScreen(
                 viewModel.currentTagNamesFlow(current.pathB64)
             }.collectAsStateWithLifecycle(initialValue = emptyList())
 
+            Text(
+                text = stringResource(R.string.sort_quick_tags),
+                style = MaterialTheme.typography.labelSmall,
+                color = colors.faint,
+                modifier = Modifier.padding(start = 14.dp, top = 4.dp, bottom = 4.dp),
+            )
             Row(
                 modifier = Modifier.padding(start = 14.dp, end = 14.dp, bottom = 2.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -269,7 +268,7 @@ fun SortModeScreen(
                                 .clickable { viewModel.setPickerOpen(true) },
                             contentAlignment = Alignment.Center,
                         ) {
-                            Icon(Icons.Outlined.Add, contentDescription = null, tint = colors.accent, modifier = Modifier.size(20.dp))
+                            Icon(Lucide.Plus, contentDescription = null, tint = colors.accent, modifier = Modifier.size(20.dp))
                         }
                     }
                 }
@@ -294,11 +293,15 @@ fun SortModeScreen(
                             .clickable { viewModel.trashCurrent() },
                         contentAlignment = Alignment.Center,
                     ) {
-                        Icon(Icons.Outlined.Delete, contentDescription = stringResource(R.string.explorer_action_trash), tint = colors.dim, modifier = Modifier.size(20.dp))
+                        Icon(Lucide.Trash2, contentDescription = stringResource(R.string.explorer_action_trash), tint = colors.dim, modifier = Modifier.size(20.dp))
                     }
                 }
             }
         }
+    }
+
+    if (state.coachVisible) {
+        SortCoachOverlay(onDone = viewModel::dismissCoach)
     }
 
     if (state.shortcutsOpen) {
@@ -323,6 +326,70 @@ fun SortModeScreen(
             onPin = viewModel::pinDestination,
             onDismiss = { viewModel.setPickerOpen(false) },
         )
+    }
+}
+
+/**
+ * First-open coach (V1 feedback): three sequential bubbles — pinned
+ * destinations, quick tags, swipe-to-skip — each anchored near what it explains.
+ */
+@Composable
+private fun SortCoachOverlay(onDone: () -> Unit) {
+    val colors = boxpixColors
+    var step by remember { mutableStateOf(0) }
+    val steps = listOf(
+        Triple(R.string.sort_coach_pins_title, R.string.sort_coach_pins_body, Alignment.BottomCenter),
+        Triple(R.string.sort_coach_tags_title, R.string.sort_coach_tags_body, Alignment.BottomCenter),
+        Triple(R.string.sort_coach_swipe_title, R.string.sort_coach_swipe_body, Alignment.Center),
+    )
+    val (title, body, anchor) = steps[step]
+    val advance: () -> Unit = { if (step < steps.lastIndex) step++ else onDone() }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.55f))
+            .clickable(onClick = advance),
+    ) {
+        Column(
+            modifier = Modifier
+                .align(anchor)
+                .padding(horizontal = 26.dp, vertical = if (anchor == Alignment.BottomCenter) 130.dp else 0.dp)
+                .background(colors.elevated, RoundedCornerShape(14.dp))
+                .padding(18.dp),
+        ) {
+            Text(
+                text = stringResource(title),
+                style = MaterialTheme.typography.titleMedium,
+                color = colors.text,
+            )
+            Spacer(Modifier.height(6.dp))
+            Text(
+                text = stringResource(body),
+                style = MaterialTheme.typography.bodyMedium,
+                color = colors.dim,
+            )
+            Spacer(Modifier.height(10.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "${step + 1} / ${steps.size}",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = colors.faint,
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(onClick = advance) {
+                    Text(
+                        text = stringResource(
+                            if (step < steps.lastIndex) R.string.sort_coach_next else R.string.sort_coach_done,
+                        ),
+                        color = colors.accent,
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -353,7 +420,7 @@ private fun DestinationCard(destination: PinnedDestination, onClick: () -> Unit)
             .padding(horizontal = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(Icons.Outlined.Folder, contentDescription = null, tint = colors.dim, modifier = Modifier.size(18.dp))
+        Icon(Lucide.Folder, contentDescription = null, tint = colors.dim, modifier = Modifier.size(18.dp))
         Spacer(Modifier.width(8.dp))
         Text(
             text = destination.name,
@@ -409,13 +476,13 @@ private fun ShortcutsSheet(
                         Text("${index + 1}", style = MaterialTheme.typography.labelMedium, color = colors.faint, modifier = Modifier.width(20.dp))
                         Text(destination.name, style = MaterialTheme.typography.bodyLarge, color = colors.text, modifier = Modifier.weight(1f))
                         IconButton(onClick = { onMove(destination, true) }, enabled = index > 0) {
-                            Icon(Icons.Outlined.KeyboardArrowUp, contentDescription = null, tint = if (index > 0) colors.dim else colors.faint, modifier = Modifier.size(18.dp))
+                            Icon(Lucide.ChevronUp, contentDescription = null, tint = if (index > 0) colors.dim else colors.faint, modifier = Modifier.size(18.dp))
                         }
                         IconButton(onClick = { onMove(destination, false) }, enabled = index < destinations.lastIndex) {
-                            Icon(Icons.Outlined.KeyboardArrowDown, contentDescription = null, tint = if (index < destinations.lastIndex) colors.dim else colors.faint, modifier = Modifier.size(18.dp))
+                            Icon(Lucide.ChevronDown, contentDescription = null, tint = if (index < destinations.lastIndex) colors.dim else colors.faint, modifier = Modifier.size(18.dp))
                         }
                         IconButton(onClick = { onUnpin(destination) }) {
-                            Icon(Icons.Outlined.Close, contentDescription = null, tint = colors.faint, modifier = Modifier.size(16.dp))
+                            Icon(Lucide.X, contentDescription = null, tint = colors.faint, modifier = Modifier.size(16.dp))
                         }
                     }
                 }
@@ -444,7 +511,7 @@ private fun ShortcutsSheet(
                         Text(tag, style = MaterialTheme.typography.bodySmall, color = colors.dim)
                         Spacer(Modifier.width(6.dp))
                         Icon(
-                            Icons.Outlined.Close,
+                            Lucide.X,
                             contentDescription = null,
                             tint = colors.faint,
                             modifier = Modifier

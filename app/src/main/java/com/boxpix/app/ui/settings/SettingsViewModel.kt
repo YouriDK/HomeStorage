@@ -9,6 +9,7 @@ import com.boxpix.app.data.config.ConfigBackup
 import com.boxpix.app.data.config.ConfigCrypto
 import com.boxpix.app.data.db.WorkQueueDao
 import com.boxpix.app.data.db.WorkQueueEntity
+import com.boxpix.app.data.download.DownloadProgress
 import com.boxpix.app.data.freebox.auth.AppTokenStore
 import com.boxpix.app.data.freebox.auth.FreeboxSessionManager
 import com.boxpix.app.data.media.Reconciler
@@ -19,6 +20,8 @@ import com.boxpix.app.data.net.ConnectionMode
 import com.boxpix.app.data.net.EndpointResolver
 import com.boxpix.app.data.prefs.SettingsStore
 import com.boxpix.app.data.prefs.UiPrefsStore
+import com.boxpix.app.data.db.ExcludedFolderEntity
+import com.boxpix.app.data.storage.ScanExclusionRepository
 import com.boxpix.app.data.storage.StorageEnv
 import com.boxpix.app.data.trash.TrashRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -48,11 +51,13 @@ class SettingsViewModel @Inject constructor(
     private val sessions: FreeboxSessionManager,
     private val resolver: EndpointResolver,
     private val settings: SettingsStore,
-    queueDao: WorkQueueDao,
+    private val queueDao: WorkQueueDao,
+    downloadProgress: DownloadProgress,
     syncStatus: SyncStatus,
     private val reconciler: Reconciler,
     private val xmpProcessor: XmpQueueProcessor,
     private val workerStatusFile: WorkerStatusFile,
+    private val scanExclusion: ScanExclusionRepository,
     @ApplicationContext private val context: Context,
 ) : ViewModel() {
 
@@ -85,10 +90,21 @@ class SettingsViewModel @Inject constructor(
         val appLockEnabled: Boolean = false,
         val thumbQueue: Int = 0,
         val xmpQueue: Int = 0,
+        val downloadQueue: Int = 0,
+        val downloadFailed: Int = 0,
+        val downloadActive: DownloadProgress.Active? = null,
         val lastPassAtEpochSeconds: Long? = null,
         val syncing: Boolean = false,
         val connection: ConnectionInfo = ConnectionInfo(null, null, null, null, null),
         val workerLastSeenEpochSeconds: Long? = null,
+    )
+
+    private data class QueueCounts(
+        val thumb: Int,
+        val xmp: Int,
+        val download: Int,
+        val downloadFailed: Int,
+        val downloadActive: DownloadProgress.Active?,
     )
 
     private val queues = env.useFakeProvider.flatMapLatest { useFake ->
@@ -96,7 +112,12 @@ class SettingsViewModel @Inject constructor(
         combine(
             queueDao.pendingCountByType(pid, WorkQueueEntity.TYPE_THUMB),
             queueDao.pendingCountByType(pid, WorkQueueEntity.TYPE_XMP),
-        ) { thumb, xmp -> thumb to xmp }
+            queueDao.pendingCountByType(pid, WorkQueueEntity.TYPE_DOWNLOAD),
+            queueDao.failedCountByType(pid, WorkQueueEntity.TYPE_DOWNLOAD),
+            downloadProgress.active,
+        ) { thumb, xmp, download, downloadFailed, active ->
+            QueueCounts(thumb, xmp, download, downloadFailed, active)
+        }
     }
 
     private val syncing = MutableStateFlow(false)
@@ -122,8 +143,11 @@ class SettingsViewModel @Inject constructor(
             accentPreset = appearance[1] as String,
             xmpEnabled = appearance[2] as Boolean,
             appLockEnabled = appearance[3] as Boolean,
-            thumbQueue = queueCounts.first,
-            xmpQueue = queueCounts.second,
+            thumbQueue = queueCounts.thumb,
+            xmpQueue = queueCounts.xmp,
+            downloadQueue = queueCounts.download,
+            downloadFailed = queueCounts.downloadFailed,
+            downloadActive = queueCounts.downloadActive,
             lastPassAtEpochSeconds = sync[0] as Long?,
             syncing = sync[1] as Boolean,
             workerLastSeenEpochSeconds = sync[3] as Long?,
@@ -136,6 +160,14 @@ class SettingsViewModel @Inject constructor(
             ),
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UiState())
+
+    /** V1 feedback: the "Scan" card lists excluded folders, removable in place. */
+    val excludedFolders: StateFlow<List<ExcludedFolderEntity>> = scanExclusion.excludedFolders
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    fun removeExclusion(pathB64: String) {
+        viewModelScope.launch { scanExclusion.include(pathB64) }
+    }
 
     private val _exportUri = MutableStateFlow<Uri?>(null)
     val exportUri: StateFlow<Uri?> = _exportUri.asStateFlow()
@@ -153,6 +185,17 @@ class SettingsViewModel @Inject constructor(
 
     fun resetFakeData() {
         env.fakeControls?.resetData()
+    }
+
+    fun retryFailedDownloads() {
+        viewModelScope.launch {
+            val pid = if (env.useFakeProvider.first()) {
+                TrashRepository.PROVIDER_FAKE
+            } else {
+                TrashRepository.PROVIDER_FREEBOX
+            }
+            queueDao.retryFailedByType(pid, WorkQueueEntity.TYPE_DOWNLOAD)
+        }
     }
 
     fun resyncNow() {

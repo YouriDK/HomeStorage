@@ -39,6 +39,7 @@ class AndroidDownloadNotifier @Inject constructor(
                 .setContentTitle(context.getString(R.string.download_channel))
                 .setContentText(context.getString(R.string.download_progress, fileName, index, total))
                 .setProgress(total, index - 1, false)
+                .setOnlyAlertOnce(true)
                 .setOngoing(true)
                 .build(),
         )
@@ -46,16 +47,19 @@ class AndroidDownloadNotifier @Inject constructor(
 
     override fun done(savedCount: Int, failedCount: Int) {
         ensureChannel()
+        val summary = context.resources.getQuantityString(
+            R.plurals.download_done, savedCount, savedCount,
+        ) + if (failedCount > 0) {
+            " · " + context.getString(R.string.download_failed_count, failedCount)
+        } else {
+            ""
+        }
         manager.notify(
             NOTIFICATION_ID,
             android.app.Notification.Builder(context, CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_launcher_foreground)
-                .setContentTitle(context.getString(R.string.download_channel))
-                .setContentText(
-                    context.resources.getQuantityString(
-                        R.plurals.download_done, savedCount, savedCount,
-                    ) + if (failedCount > 0) " · $failedCount KO" else "",
-                )
+                .setContentTitle(context.getString(R.string.download_done_title))
+                .setContentText(summary)
                 .setOngoing(false)
                 .build(),
         )

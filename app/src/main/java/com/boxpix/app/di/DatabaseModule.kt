@@ -3,6 +3,7 @@ package com.boxpix.app.di
 import android.content.Context
 import androidx.room.Room
 import com.boxpix.app.data.db.BoxpixDatabase
+import com.boxpix.app.data.db.ExcludedFolderDao
 import com.boxpix.app.data.db.MediaDao
 import com.boxpix.app.data.db.ProtectedFolderDao
 import com.boxpix.app.data.db.SearchDao
@@ -39,6 +40,9 @@ object DatabaseModule {
 
     @Provides
     fun protectedFolderDao(db: BoxpixDatabase): ProtectedFolderDao = db.protectedFolderDao()
+
+    @Provides
+    fun excludedFolderDao(db: BoxpixDatabase): ExcludedFolderDao = db.excludedFolderDao()
 
     @Provides
     fun tagDao(db: BoxpixDatabase): TagDao = db.tagDao()

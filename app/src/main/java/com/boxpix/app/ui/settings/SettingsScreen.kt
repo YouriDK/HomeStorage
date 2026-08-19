@@ -20,9 +20,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -49,6 +46,7 @@ import com.boxpix.app.data.net.ConnectionMode
 import com.boxpix.app.data.prefs.UiPrefsStore
 import com.boxpix.app.ui.common.formatDate
 import com.boxpix.app.ui.explorer.NameDialog
+import com.boxpix.app.ui.icons.Lucide
 import com.boxpix.app.ui.theme.AccentPresets
 import com.boxpix.app.ui.theme.boxpixColors
 
@@ -93,7 +91,7 @@ fun SettingsScreen(
         ) {
             IconButton(onClick = onBack) {
                 Icon(
-                    Icons.AutoMirrored.Outlined.ArrowBack,
+                    Lucide.ArrowLeft,
                     contentDescription = null,
                     tint = colors.text,
                     modifier = Modifier.size(22.dp),
@@ -166,6 +164,27 @@ fun SettingsScreen(
                 sub = pluralStringResource(R.plurals.settings_pending, state.thumbQueue, state.thumbQueue),
             ) {}
             SettingRow(
+                name = stringResource(R.string.settings_download_queue),
+                sub = state.downloadActive?.let { active ->
+                    stringResource(R.string.download_progress, active.fileName, active.index, active.total)
+                } ?: buildString {
+                    append(pluralStringResource(R.plurals.settings_pending, state.downloadQueue, state.downloadQueue))
+                    if (state.downloadFailed > 0) {
+                        append(" · ")
+                        append(stringResource(R.string.download_failed_count, state.downloadFailed))
+                    }
+                },
+            ) {
+                if (state.downloadFailed > 0) {
+                    Text(
+                        text = stringResource(R.string.worker_action_retry),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = colors.accent,
+                        modifier = Modifier.clickable(onClick = viewModel::retryFailedDownloads),
+                    )
+                }
+            }
+            SettingRow(
                 name = stringResource(R.string.settings_xmp_switch),
                 sub = stringResource(R.string.settings_xmp_switch_hint),
             ) {
@@ -185,7 +204,7 @@ fun SettingsScreen(
                 onClick = onOpenWorker,
             ) {
                 Icon(
-                    Icons.Outlined.ChevronRight,
+                    Lucide.ChevronRight,
                     contentDescription = null,
                     tint = colors.faint,
                     modifier = Modifier.size(18.dp),
@@ -211,6 +230,29 @@ fun SettingsScreen(
             }
             HairlineDivider()
 
+            GroupLabel(stringResource(R.string.settings_group_scan))
+            val excludedFolders by viewModel.excludedFolders.collectAsStateWithLifecycle()
+            if (excludedFolders.isEmpty()) {
+                SettingRow(
+                    name = stringResource(R.string.settings_excluded_none),
+                    sub = stringResource(R.string.settings_excluded_hint),
+                ) {}
+            } else {
+                excludedFolders.forEach { folder ->
+                    SettingRow(name = folder.displayPath, sub = null) {
+                        IconButton(onClick = { viewModel.removeExclusion(folder.pathB64) }) {
+                            Icon(
+                                Lucide.X,
+                                contentDescription = stringResource(R.string.explorer_action_include),
+                                tint = colors.faint,
+                                modifier = Modifier.size(16.dp),
+                            )
+                        }
+                    }
+                }
+            }
+            HairlineDivider()
+
             GroupLabel(stringResource(R.string.tag_picker_title))
             SettingRow(
                 name = stringResource(R.string.settings_manage_tags),
@@ -218,7 +260,7 @@ fun SettingsScreen(
                 onClick = onOpenTags,
             ) {
                 Icon(
-                    Icons.Outlined.ChevronRight,
+                    Lucide.ChevronRight,
                     contentDescription = null,
                     tint = colors.faint,
                     modifier = Modifier.size(18.dp),
@@ -239,7 +281,7 @@ fun SettingsScreen(
                 )
                 Spacer(Modifier.size(4.dp))
                 Icon(
-                    Icons.Outlined.ChevronRight,
+                    Lucide.ChevronRight,
                     contentDescription = null,
                     tint = colors.faint,
                     modifier = Modifier.size(18.dp),

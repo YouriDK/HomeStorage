@@ -15,10 +15,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.material.icons.outlined.ChevronRight
-import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -35,6 +31,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import com.boxpix.app.R
 import com.boxpix.app.data.storage.StorageEntry
+import com.boxpix.app.ui.icons.Lucide
 import com.boxpix.app.ui.theme.boxpixColors
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -79,7 +76,7 @@ fun MoveSheet(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Icon(
-                        Icons.AutoMirrored.Outlined.ArrowBack,
+                        Lucide.ArrowLeft,
                         contentDescription = null,
                         tint = colors.accent,
                         modifier = Modifier.size(18.dp),
@@ -119,7 +116,7 @@ fun MoveSheet(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Icon(
-                                Icons.Outlined.Folder,
+                                Lucide.Folder,
                                 contentDescription = null,
                                 tint = colors.dim,
                                 modifier = Modifier.size(20.dp),
@@ -133,7 +130,7 @@ fun MoveSheet(
                                 maxLines = 1,
                             )
                             Icon(
-                                Icons.Outlined.ChevronRight,
+                                Lucide.ChevronRight,
                                 contentDescription = null,
                                 tint = colors.faint,
                                 modifier = Modifier.size(18.dp),

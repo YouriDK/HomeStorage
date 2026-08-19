@@ -1,8 +1,12 @@
 package com.boxpix.app.support
 
+import com.boxpix.app.data.db.ExcludedFolderDao
+import com.boxpix.app.data.db.ExcludedFolderEntity
 import com.boxpix.app.data.db.MediaDao
 import com.boxpix.app.data.db.MediaItemEntity
 import com.boxpix.app.data.db.MediaTagEntity
+import com.boxpix.app.data.db.ProtectedFolderDao
+import com.boxpix.app.data.db.ProtectedFolderEntity
 import com.boxpix.app.data.db.TagDao
 import com.boxpix.app.data.db.TagEntity
 import com.boxpix.app.data.db.TagWithCount
@@ -41,9 +45,23 @@ class InMemoryMediaDao : MediaDao {
         }
     }
 
-    override suspend fun setTakenAt(providerId: String, pathB64: String, takenAt: Long?) {
+    override suspend fun setTakenAtFromExif(providerId: String, pathB64: String, takenAt: Long?) {
         store.value[providerId to pathB64]?.let {
+            if (it.takenAtManual) return
             store.value = store.value + ((providerId to pathB64) to it.copy(takenAtEpochSeconds = takenAt))
+        }
+    }
+
+    override suspend fun setManualTakenAt(providerId: String, pathB64: String, takenAt: Long) {
+        store.value[providerId to pathB64]?.let {
+            store.value = store.value +
+                ((providerId to pathB64) to it.copy(takenAtEpochSeconds = takenAt, takenAtManual = true))
+        }
+    }
+
+    override suspend fun setLocation(providerId: String, pathB64: String, location: String?) {
+        store.value[providerId to pathB64]?.let {
+            store.value = store.value + ((providerId to pathB64) to it.copy(locationText = location))
         }
     }
 
@@ -121,11 +139,69 @@ class InMemoryWorkQueueDao : WorkQueueDao {
         }
     }
 
+    override suspend fun retryFailedByType(providerId: String, type: String) {
+        store.value = store.value.mapValues { (_, job) ->
+            if (job.providerId == providerId && job.type == type && job.status == WorkQueueEntity.STATUS_FAILED) {
+                job.copy(status = WorkQueueEntity.STATUS_PENDING, attempts = 0, lastError = null)
+            } else {
+                job
+            }
+        }
+    }
+
     override suspend fun deleteForPath(providerId: String, pathB64: String) {
         store.value = store.value.filterKeys { !(it.first == providerId && it.third == pathB64) }
     }
 
     fun allJobs() = store.value.values.toList()
+}
+
+class InMemoryProtectedFolderDao : ProtectedFolderDao {
+    val store = MutableStateFlow<List<ProtectedFolderEntity>>(emptyList())
+
+    override fun all(providerId: String) =
+        store.map { list -> list.filter { it.providerId == providerId } }
+
+    override suspend fun snapshot(providerId: String) =
+        store.value.filter { it.providerId == providerId }
+
+    override suspend fun insert(folder: ProtectedFolderEntity) {
+        store.value = store.value.filterNot {
+            it.providerId == folder.providerId && it.pathB64 == folder.pathB64
+        } + folder
+    }
+
+    override suspend fun delete(providerId: String, pathB64: String) {
+        store.value = store.value.filterNot { it.providerId == providerId && it.pathB64 == pathB64 }
+    }
+
+    override suspend fun clear(providerId: String) {
+        store.value = store.value.filterNot { it.providerId == providerId }
+    }
+}
+
+class InMemoryExcludedFolderDao : ExcludedFolderDao {
+    val store = MutableStateFlow<List<ExcludedFolderEntity>>(emptyList())
+
+    override fun all(providerId: String) =
+        store.map { list -> list.filter { it.providerId == providerId } }
+
+    override suspend fun snapshot(providerId: String) =
+        store.value.filter { it.providerId == providerId }
+
+    override suspend fun insert(folder: ExcludedFolderEntity) {
+        store.value = store.value.filterNot {
+            it.providerId == folder.providerId && it.pathB64 == folder.pathB64
+        } + folder
+    }
+
+    override suspend fun delete(providerId: String, pathB64: String) {
+        store.value = store.value.filterNot { it.providerId == providerId && it.pathB64 == pathB64 }
+    }
+
+    override suspend fun clear(providerId: String) {
+        store.value = store.value.filterNot { it.providerId == providerId }
+    }
 }
 
 class InMemoryTagDao : TagDao {

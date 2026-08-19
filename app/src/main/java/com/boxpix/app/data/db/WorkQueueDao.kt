@@ -43,6 +43,12 @@ interface WorkQueueDao {
     )
     suspend fun retryFailed(providerId: String)
 
+    @Query(
+        "UPDATE work_queue SET status = 'PENDING', attempts = 0, lastError = NULL " +
+            "WHERE providerId = :providerId AND type = :type AND status = 'FAILED'",
+    )
+    suspend fun retryFailedByType(providerId: String, type: String)
+
     @Query("DELETE FROM work_queue WHERE providerId = :providerId AND pathB64 = :pathB64")
     suspend fun deleteForPath(providerId: String, pathB64: String)
 }

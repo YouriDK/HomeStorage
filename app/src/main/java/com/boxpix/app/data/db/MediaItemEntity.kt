@@ -17,6 +17,10 @@ data class MediaItemEntity(
     val mtime: Long,
     /** EXIF capture date; null until the pipeline has read the file. */
     val takenAtEpochSeconds: Long?,
+    /** True when the date was corrected by hand — EXIF reads no longer overwrite it. */
+    val takenAtManual: Boolean = false,
+    /** Free-text place set by hand; written to XMP when the queue is on. */
+    val locationText: String? = null,
     val mimeType: String?,
     val isVideo: Boolean,
     val durationSeconds: Long?,

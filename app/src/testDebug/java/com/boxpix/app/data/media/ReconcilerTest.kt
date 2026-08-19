@@ -7,10 +7,13 @@ import com.boxpix.app.data.db.WorkQueueDao
 import com.boxpix.app.data.db.WorkQueueEntity
 import com.boxpix.app.data.fake.FakeStorageProvider
 import com.boxpix.app.data.freebox.api.PathCodec
+import com.boxpix.app.data.storage.FolderListsSync
 import com.boxpix.app.data.storage.RootLocator
 import com.boxpix.app.data.storage.StorageEnv
 import com.boxpix.app.data.storage.StorageFolders
+import com.boxpix.app.support.InMemoryExcludedFolderDao
 import com.boxpix.app.support.InMemoryMediaDao
+import com.boxpix.app.support.InMemoryProtectedFolderDao
 import com.boxpix.app.support.InMemoryWorkQueueDao
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
@@ -36,13 +39,29 @@ class ReconcilerTest {
     )
     private val mediaDao = InMemoryMediaDao()
     private val queueDao = InMemoryWorkQueueDao()
+    private val protectedDao = InMemoryProtectedFolderDao()
+    private val excludedDao = InMemoryExcludedFolderDao()
     private val env = StorageEnv(useFakeProvider = flowOf(true), fakeControls = provider)
     private val thumbnails = ThumbnailRepository(
         provider, mediaDao, StubProcessor(), StorageFolders(provider), env,
     )
+    private val folderLists = FolderListsSync(
+        provider = provider,
+        folders = StorageFolders(provider),
+        rootLocator = { PathCodec.encode("/Photos") },
+        protectedDao = protectedDao,
+        excludedDao = excludedDao,
+        env = env,
+        deviceIdentity = { "test-device" },
+        clock = java.time.Clock.systemUTC(),
+        json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true },
+        scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Unconfined),
+    )
     private val reconciler = Reconciler(
         provider, mediaDao, queueDao, thumbnails, env,
         rootLocator = { PathCodec.encode("/Photos") },
+        excludedDao = excludedDao,
+        folderLists = folderLists,
         syncStatus = SyncStatus(),
         clock = java.time.Clock.systemUTC(),
         telemetry = WorkerTelemetry(java.time.Clock.systemUTC()),
@@ -108,6 +127,70 @@ class ReconcilerTest {
         assertTrue(row.hasThumb)
         // The old path's row is gone from the index.
         assertEquals(12, mediaDao.allRows().count { it.folderDisplayPath == "/Photos/Scans" })
+    }
+
+    @Test
+    fun `non-media extensions never create a job`() = runTest {
+        provider.upload(b64("/Photos/Scans"), "notes.pdf", byteArrayOf(1, 2, 3))
+        provider.upload(b64("/Photos/Scans"), "archive.zip", byteArrayOf(4, 5, 6))
+
+        reconciler.runPass(maxFolders = Int.MAX_VALUE, processLimit = 0)
+
+        val jobPaths = queueDao.allJobs().map { it.displayPath }
+        assertTrue(jobPaths.none { it.endsWith(".pdf") || it.endsWith(".zip") })
+        // They still land in the index (searchable under "Others"), just job-free.
+        assertTrue(mediaDao.allRows().any { it.name == "notes.pdf" })
+    }
+
+    @Test
+    fun `an excluded subtree is neither scanned nor indexed`() = runTest {
+        excludedDao.insert(
+            com.boxpix.app.data.db.ExcludedFolderEntity(
+                providerId = com.boxpix.app.data.trash.TrashRepository.PROVIDER_FAKE,
+                pathB64 = b64("/Photos/Screenshots"),
+                displayPath = "/Photos/Screenshots",
+            ),
+        )
+
+        reconciler.runPass(maxFolders = Int.MAX_VALUE, processLimit = 0)
+
+        assertTrue(mediaDao.allRows().none { it.folderDisplayPath.startsWith("/Photos/Screenshots") })
+        assertTrue(queueDao.allJobs().none { it.displayPath.startsWith("/Photos/Screenshots/") })
+    }
+
+    @Test
+    fun `folder lists written by another device apply on the next pass`() = runTest {
+        // A second device exports its lists to /.meta/folders.json.
+        val otherDao = InMemoryExcludedFolderDao()
+        otherDao.insert(
+            com.boxpix.app.data.db.ExcludedFolderEntity(
+                providerId = com.boxpix.app.data.trash.TrashRepository.PROVIDER_FAKE,
+                pathB64 = b64("/Photos/Video"),
+                displayPath = "/Photos/Video",
+            ),
+        )
+        val otherDevice = FolderListsSync(
+            provider = provider,
+            folders = StorageFolders(provider),
+            rootLocator = { PathCodec.encode("/Photos") },
+            protectedDao = InMemoryProtectedFolderDao(),
+            excludedDao = otherDao,
+            env = env,
+            deviceIdentity = { "other-device" },
+            clock = java.time.Clock.systemUTC(),
+            json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true },
+            scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Unconfined),
+        )
+        otherDevice.exportNow()
+
+        reconciler.runPass(maxFolders = Int.MAX_VALUE, processLimit = 0)
+
+        assertEquals(
+            listOf("/Photos/Video"),
+            excludedDao.snapshot(com.boxpix.app.data.trash.TrashRepository.PROVIDER_FAKE)
+                .map { it.displayPath },
+        )
+        assertTrue(mediaDao.allRows().none { it.folderDisplayPath.startsWith("/Photos/Video") })
     }
 
     @Test

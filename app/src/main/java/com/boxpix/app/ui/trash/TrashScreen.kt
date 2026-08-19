@@ -13,11 +13,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.material.icons.automirrored.outlined.InsertDriveFile
-import androidx.compose.material.icons.outlined.DeleteForever
-import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -37,6 +32,7 @@ import com.boxpix.app.data.db.TrashItemEntity
 import com.boxpix.app.ui.common.formatBytes
 import com.boxpix.app.ui.common.formatDate
 import com.boxpix.app.ui.common.message
+import com.boxpix.app.ui.icons.Lucide
 import com.boxpix.app.ui.theme.boxpixColors
 
 @Composable
@@ -63,7 +59,7 @@ fun TrashScreen(
         ) {
             IconButton(onClick = onBack) {
                 Icon(
-                    Icons.AutoMirrored.Outlined.ArrowBack,
+                    Lucide.ArrowLeft,
                     contentDescription = null,
                     tint = colors.text,
                     modifier = Modifier.size(22.dp),
@@ -142,7 +138,7 @@ private fun TrashRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
-            if (item.isDirectory) Icons.Outlined.Folder else Icons.AutoMirrored.Outlined.InsertDriveFile,
+            if (item.isDirectory) Lucide.Folder else Lucide.File,
             contentDescription = null,
             tint = colors.dim,
             modifier = Modifier.size(20.dp),
@@ -173,7 +169,7 @@ private fun TrashRow(
         }
         IconButton(onClick = onPurge) {
             Icon(
-                Icons.Outlined.DeleteForever,
+                Lucide.Trash,
                 contentDescription = stringResource(R.string.trash_delete_forever),
                 tint = colors.faint,
                 modifier = Modifier.size(20.dp),

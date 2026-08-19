@@ -104,6 +104,7 @@ class DownloadTest {
             queueDao = queueDao,
             saver = saver,
             notifier = notifier,
+            progress = DownloadProgress(),
             streaming = { null },
             http = HttpClient(MockEngine { respondOk("unused") }),
             env = env,

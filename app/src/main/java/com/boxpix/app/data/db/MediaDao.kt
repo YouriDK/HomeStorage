@@ -26,11 +26,24 @@ interface MediaDao {
     )
     suspend fun setHasThumb(providerId: String, pathB64: String, hasThumb: Boolean)
 
+    /** EXIF-sourced date: never tramples a manual correction. */
     @Query(
         "UPDATE media_items SET takenAtEpochSeconds = :takenAt " +
+            "WHERE providerId = :providerId AND pathB64 = :pathB64 AND takenAtManual = 0",
+    )
+    suspend fun setTakenAtFromExif(providerId: String, pathB64: String, takenAt: Long?)
+
+    @Query(
+        "UPDATE media_items SET takenAtEpochSeconds = :takenAt, takenAtManual = 1 " +
             "WHERE providerId = :providerId AND pathB64 = :pathB64",
     )
-    suspend fun setTakenAt(providerId: String, pathB64: String, takenAt: Long?)
+    suspend fun setManualTakenAt(providerId: String, pathB64: String, takenAt: Long)
+
+    @Query(
+        "UPDATE media_items SET locationText = :location " +
+            "WHERE providerId = :providerId AND pathB64 = :pathB64",
+    )
+    suspend fun setLocation(providerId: String, pathB64: String, location: String?)
 
     @Query("SELECT COUNT(*) FROM media_items WHERE providerId = :providerId")
     fun count(providerId: String): Flow<Int>

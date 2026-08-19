@@ -15,8 +15,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -38,6 +36,7 @@ import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.boxpix.app.R
+import com.boxpix.app.ui.icons.Lucide
 import com.boxpix.app.ui.theme.boxpixColors
 
 /**
@@ -107,7 +106,7 @@ private fun LockScreen(onUnlocked: () -> Unit) {
         verticalArrangement = Arrangement.Center,
     ) {
         Icon(
-            Icons.Outlined.Lock,
+            Lucide.Lock,
             contentDescription = null,
             tint = colors.dim,
             modifier = Modifier.size(44.dp),

@@ -187,9 +187,10 @@ class TagRepository @Inject constructor(
         _exportConflict.value = null
     }
 
-    private suspend fun enqueueXmp(providerId: String, media: MediaRef) {
+    /** Single gate for embedded writes: owner's switch, JPEG only (spike verdict). */
+    suspend fun enqueueXmp(providerId: String, media: MediaRef) {
         if (!xmpPolicy.enabled()) return // owner's switch: no file rewrites until enabled
-        if (media.mimeType != "image/jpeg") return // spike verdict: JPEG only
+        if (media.mimeType != "image/jpeg") return
         queueDao.upsert(
             WorkQueueEntity(
                 providerId = providerId,

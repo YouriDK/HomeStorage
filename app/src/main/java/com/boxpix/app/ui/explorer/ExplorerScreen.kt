@@ -29,25 +29,6 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.material.icons.automirrored.outlined.DriveFileMove
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.outlined.Add
-import androidx.compose.material.icons.outlined.Close
-import androidx.compose.material.icons.outlined.Delete
-import androidx.compose.material.icons.outlined.Download
-import androidx.compose.material.icons.outlined.Edit
-import androidx.compose.material.icons.outlined.Folder
-import androidx.compose.material.icons.outlined.Lock
-import androidx.compose.material.icons.outlined.LockOpen
-import androidx.compose.material.icons.outlined.Search
-import androidx.compose.material.icons.outlined.Sell
-import androidx.compose.material.icons.outlined.Swipe
-import androidx.compose.material.icons.outlined.SelectAll
-import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -93,6 +74,7 @@ import com.boxpix.app.ui.common.WakingDiskView
 import com.boxpix.app.ui.common.formatDuration
 import com.boxpix.app.ui.common.message
 import com.boxpix.app.ui.explorer.ExplorerViewModel.AlbumUi
+import com.boxpix.app.ui.icons.Lucide
 import com.boxpix.app.ui.theme.boxpixColors
 
 @Composable
@@ -123,6 +105,7 @@ fun ExplorerScreen(
     var showRenameDialog by remember { mutableStateOf(false) }
     var showTrashConfirm by remember { mutableStateOf(false) }
     var showTagPicker by remember { mutableStateOf(false) }
+    var showMetadataSheet by remember { mutableStateOf(false) }
 
     val allTags by viewModel.allTags.collectAsStateWithLifecycle()
     val exportConflict by viewModel.exportConflict.collectAsStateWithLifecycle()
@@ -143,15 +126,18 @@ fun ExplorerScreen(
                     canRename = state.selection.size == 1,
                     canProtect = singleFolder != null,
                     isProtected = singleFolder?.displayPath in state.protectedPaths,
+                    isExcluded = singleFolder?.displayPath in state.excludedPaths,
                     writeEnabled = !state.offline,
                     onClose = viewModel::clearSelection,
                     onRename = { showRenameDialog = true },
                     onTag = { showTagPicker = true },
+                    onEditMetadata = { showMetadataSheet = true },
                     onDownload = viewModel::downloadSelected,
                     onMove = viewModel::openMoveSheet,
                     onTrash = { showTrashConfirm = true },
                     onSelectAll = viewModel::selectAll,
                     onToggleProtect = viewModel::toggleProtection,
+                    onToggleExclude = viewModel::toggleExclusion,
                 )
             } else {
                 ExplorerTopBar(
@@ -204,6 +190,18 @@ fun ExplorerScreen(
                 else -> ContentGrid(state = state, viewModel = viewModel, onOpenViewer = onOpenViewer)
             }
         }
+    }
+
+    if (showMetadataSheet) {
+        com.boxpix.app.ui.common.MetadataSheet(
+            selectionCount = state.selection.size,
+            tags = allTags.filterNot { it.isSystem },
+            onApply = { tagIds, takenAt, location ->
+                showMetadataSheet = false
+                viewModel.applyMetadataToSelection(tagIds, takenAt, location)
+            },
+            onDismiss = { showMetadataSheet = false },
+        )
     }
 
     if (showTagPicker) {
@@ -323,7 +321,7 @@ private fun ExplorerTopBar(
         if (state.depth > 0) {
             IconButton(onClick = onBack) {
                 Icon(
-                    Icons.AutoMirrored.Outlined.ArrowBack,
+                    Lucide.ArrowLeft,
                     contentDescription = null,
                     tint = colors.text,
                     modifier = Modifier.size(22.dp),
@@ -360,7 +358,7 @@ private fun ExplorerTopBar(
         if (state.media.isNotEmpty() && !state.offline) {
             IconButton(onClick = onOpenSortMode) {
                 Icon(
-                    Icons.Outlined.Swipe,
+                    Lucide.Hand,
                     contentDescription = stringResource(R.string.sort_title, state.current?.name.orEmpty()),
                     tint = colors.dim,
                     modifier = Modifier.size(22.dp),
@@ -369,7 +367,7 @@ private fun ExplorerTopBar(
         }
         IconButton(onClick = onOpenSearch) {
             Icon(
-                Icons.Outlined.Search,
+                Lucide.Search,
                 contentDescription = stringResource(R.string.search_title),
                 tint = colors.dim,
                 modifier = Modifier.size(22.dp),
@@ -377,7 +375,7 @@ private fun ExplorerTopBar(
         }
         IconButton(onClick = onOpenSettings) {
             Icon(
-                Icons.Outlined.Settings,
+                Lucide.Settings,
                 contentDescription = stringResource(R.string.settings_title),
                 tint = colors.dim,
                 modifier = Modifier.size(22.dp),
@@ -453,7 +451,7 @@ private fun SortRow(
         TextButton(onClick = onNewFolder, enabled = newFolderEnabled) {
             val tint = if (newFolderEnabled) colors.accent else colors.faint
             Icon(
-                Icons.Outlined.Add,
+                Lucide.Plus,
                 contentDescription = null,
                 tint = tint,
                 modifier = Modifier.size(16.dp),
@@ -483,15 +481,18 @@ private fun SelectionBar(
     canRename: Boolean,
     canProtect: Boolean,
     isProtected: Boolean,
+    isExcluded: Boolean,
     writeEnabled: Boolean,
     onClose: () -> Unit,
     onRename: () -> Unit,
     onTag: () -> Unit,
+    onEditMetadata: () -> Unit,
     onDownload: () -> Unit,
     onMove: () -> Unit,
     onTrash: () -> Unit,
     onSelectAll: () -> Unit,
     onToggleProtect: () -> Unit,
+    onToggleExclude: () -> Unit,
 ) {
     val colors = boxpixColors
     Row(
@@ -503,7 +504,7 @@ private fun SelectionBar(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         IconButton(onClick = onClose) {
-            Icon(Icons.Outlined.Close, contentDescription = null, tint = colors.text, modifier = Modifier.size(22.dp))
+            Icon(Lucide.X, contentDescription = null, tint = colors.text, modifier = Modifier.size(22.dp))
         }
         Text(
             text = pluralStringResource(R.plurals.explorer_selected, count, count),
@@ -514,7 +515,7 @@ private fun SelectionBar(
         if (canProtect) {
             IconButton(onClick = onToggleProtect, enabled = writeEnabled) {
                 Icon(
-                    if (isProtected) Icons.Outlined.LockOpen else Icons.Outlined.Lock,
+                    if (isProtected) Lucide.LockOpen else Lucide.Lock,
                     contentDescription = stringResource(
                         if (isProtected) R.string.explorer_action_unprotect else R.string.explorer_action_protect,
                     ),
@@ -522,11 +523,21 @@ private fun SelectionBar(
                     modifier = Modifier.size(22.dp),
                 )
             }
+            IconButton(onClick = onToggleExclude) {
+                Icon(
+                    Lucide.EyeOff,
+                    contentDescription = stringResource(
+                        if (isExcluded) R.string.explorer_action_include else R.string.explorer_action_exclude,
+                    ),
+                    tint = if (isExcluded) colors.accent else colors.dim,
+                    modifier = Modifier.size(22.dp),
+                )
+            }
         }
         if (canRename) {
             IconButton(onClick = onRename, enabled = writeEnabled) {
                 Icon(
-                    Icons.Outlined.Edit,
+                    Lucide.Pencil,
                     contentDescription = stringResource(R.string.explorer_action_rename),
                     tint = colors.dim,
                     modifier = Modifier.size(22.dp),
@@ -535,15 +546,24 @@ private fun SelectionBar(
         }
         IconButton(onClick = onTag) {
             Icon(
-                Icons.Outlined.Sell,
+                Lucide.Tag,
                 contentDescription = stringResource(R.string.explorer_action_tag),
+                tint = colors.dim,
+                modifier = Modifier.size(22.dp),
+            )
+        }
+        // Room-first like tagging: works offline, the XMP queue drains later.
+        IconButton(onClick = onEditMetadata) {
+            Icon(
+                Lucide.SlidersHorizontal,
+                contentDescription = stringResource(R.string.explorer_action_metadata),
                 tint = colors.dim,
                 modifier = Modifier.size(22.dp),
             )
         }
         IconButton(onClick = onDownload) {
             Icon(
-                Icons.Outlined.Download,
+                Lucide.Download,
                 contentDescription = stringResource(R.string.viewer_menu_save),
                 tint = colors.dim,
                 modifier = Modifier.size(22.dp),
@@ -551,7 +571,7 @@ private fun SelectionBar(
         }
         IconButton(onClick = onMove, enabled = writeEnabled) {
             Icon(
-                Icons.AutoMirrored.Outlined.DriveFileMove,
+                Lucide.FolderInput,
                 contentDescription = stringResource(R.string.explorer_action_move),
                 tint = colors.dim,
                 modifier = Modifier.size(22.dp),
@@ -559,7 +579,7 @@ private fun SelectionBar(
         }
         IconButton(onClick = onTrash, enabled = writeEnabled) {
             Icon(
-                Icons.Outlined.Delete,
+                Lucide.Trash2,
                 contentDescription = stringResource(R.string.explorer_action_trash),
                 tint = colors.dim,
                 modifier = Modifier.size(22.dp),
@@ -567,7 +587,7 @@ private fun SelectionBar(
         }
         IconButton(onClick = onSelectAll) {
             Icon(
-                Icons.Outlined.SelectAll,
+                Lucide.CheckCheck,
                 contentDescription = stringResource(R.string.explorer_action_select_all),
                 tint = colors.dim,
                 modifier = Modifier.size(22.dp),
@@ -594,7 +614,7 @@ private fun ErrorBanner(message: String, onDismiss: () -> Unit) {
             modifier = Modifier.weight(1f),
         )
         IconButton(onClick = onDismiss) {
-            Icon(Icons.Outlined.Close, contentDescription = null, tint = colors.dim, modifier = Modifier.size(16.dp))
+            Icon(Lucide.X, contentDescription = null, tint = colors.dim, modifier = Modifier.size(16.dp))
         }
     }
 }
@@ -677,7 +697,7 @@ private fun FolderTile(
             )
         } else {
             Icon(
-                Icons.Outlined.Folder,
+                Lucide.Folder,
                 contentDescription = null,
                 tint = colors.dim,
                 modifier = Modifier
@@ -712,7 +732,7 @@ private fun FolderTile(
         }
         if (isProtected) {
             Icon(
-                Icons.Outlined.Lock,
+                Lucide.Lock,
                 contentDescription = stringResource(R.string.explorer_protected),
                 tint = Color.White,
                 modifier = Modifier
@@ -786,7 +806,7 @@ private fun MediaCell(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(
-                    Icons.Filled.PlayArrow,
+                    Lucide.PlayFilled,
                     contentDescription = null,
                     tint = Color.White,
                     modifier = Modifier.size(14.dp),
@@ -802,7 +822,7 @@ private fun MediaCell(
         }
         if (isFavorite) {
             Icon(
-                Icons.Filled.Favorite,
+                Lucide.HeartFilled,
                 contentDescription = null,
                 tint = Color.White,
                 modifier = Modifier
@@ -826,7 +846,7 @@ private fun SelectionCheck(modifier: Modifier = Modifier) {
         contentAlignment = Alignment.Center,
     ) {
         Icon(
-            Icons.Filled.Check,
+            Lucide.Check,
             contentDescription = null,
             tint = colors.bg,
             modifier = Modifier.size(12.dp),

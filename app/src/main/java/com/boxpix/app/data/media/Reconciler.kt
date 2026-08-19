@@ -7,9 +7,10 @@ import com.boxpix.app.data.db.MediaDao
 import com.boxpix.app.data.db.MediaItemEntity
 import com.boxpix.app.data.db.WorkQueueDao
 import com.boxpix.app.data.db.WorkQueueEntity
+import com.boxpix.app.data.db.ExcludedFolderDao
 import com.boxpix.app.data.freebox.api.PathCodec
+import com.boxpix.app.data.storage.FolderListsSync
 import com.boxpix.app.data.storage.RootLocator
-import com.boxpix.app.data.storage.StorageEntry
 import com.boxpix.app.data.storage.StorageEnv
 import com.boxpix.app.data.storage.StorageProvider
 import com.boxpix.app.data.trash.TrashRepository
@@ -32,6 +33,8 @@ class Reconciler @Inject constructor(
     private val thumbnails: ThumbnailRepository,
     private val env: StorageEnv,
     private val rootLocator: RootLocator,
+    private val excludedDao: ExcludedFolderDao,
+    private val folderLists: FolderListsSync,
     private val syncStatus: SyncStatus,
     private val clock: java.time.Clock,
     private val telemetry: WorkerTelemetry,
@@ -49,6 +52,8 @@ class Reconciler @Inject constructor(
         try {
             val root = rootLocator.rootPathB64() ?: return
             val providerId = currentProviderId()
+            // Another device may have changed the shared folder lists since our last pass.
+            runCatching { folderLists.importIfNewer() }
             val scanned = scan(providerId, root, maxFolders)
             val processed = processQueue(providerId, processLimit)
             syncStatus.recordPass(clock.instant().epochSecond)
@@ -59,10 +64,12 @@ class Reconciler @Inject constructor(
     }
 
     private suspend fun scan(providerId: String, rootB64: String, maxFolders: Int): Int {
+        val excludedPaths = excludedDao.snapshot(providerId).map { it.displayPath }
         var visited = 0
         val toVisit = ArrayDeque(listOf(rootB64))
         while (toVisit.isNotEmpty() && visited < maxFolders) {
             val folderB64 = toVisit.removeFirst()
+            if (isExcluded(folderDisplayOf(folderB64), excludedPaths)) continue
             val entries = when (val listed = provider.list(folderB64)) {
                 is FbxResult.Ok -> listed.value
                 is FbxResult.Err -> continue // transient listing failure: next pass catches up
@@ -86,6 +93,8 @@ class Reconciler @Inject constructor(
                     sizeBytes = file.sizeBytes,
                     mtime = file.modifiedEpochSeconds,
                     takenAtEpochSeconds = if (unchanged) previous?.takenAtEpochSeconds else null,
+                    takenAtManual = unchanged && previous?.takenAtManual == true,
+                    locationText = if (unchanged) previous?.locationText else null,
                     mimeType = file.mimeType,
                     isVideo = file.mimeType?.startsWith("video/") == true,
                     durationSeconds = file.durationSeconds,
@@ -96,11 +105,13 @@ class Reconciler @Inject constructor(
             mediaDao.deleteFolderRowsNotIn(providerId, folderDisplay, files.map { it.pathB64 })
 
             files.forEach { file ->
+                // Extension gate (V1 feedback): a pdf/zip/sidecar never creates a
+                // job, whatever mime the box reports for it.
                 val type = when {
-                    file.isImage() -> WorkQueueEntity.TYPE_THUMB
+                    MediaTypes.isPhoto(file.name) -> WorkQueueEntity.TYPE_THUMB
                     // Video thumbnails are the worker's job (SPEC M7), real box only:
                     // the fake's videos are not decodable containers.
-                    file.mimeType?.startsWith("video/") == true &&
+                    MediaTypes.isVideo(file.name) &&
                         providerId == TrashRepository.PROVIDER_FREEBOX ->
                         WorkQueueEntity.TYPE_VIDEO_THUMB
                     else -> return@forEach
@@ -171,7 +182,8 @@ class Reconciler @Inject constructor(
     private fun folderDisplayOf(folderB64: String): String =
         runCatching { PathCodec.decode(folderB64) }.getOrDefault("")
 
-    private fun StorageEntry.isImage(): Boolean = mimeType?.startsWith("image/") == true
+    private fun isExcluded(displayPath: String, excludedPaths: List<String>): Boolean =
+        excludedPaths.any { it == displayPath || displayPath.startsWith("$it/") }
 
     private fun log(message: String) {
         if (BuildConfig.DEBUG) Log.i(TAG, message)

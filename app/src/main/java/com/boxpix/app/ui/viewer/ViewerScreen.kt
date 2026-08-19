@@ -25,18 +25,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.material.icons.automirrored.outlined.DriveFileMove
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.outlined.Delete
-import androidx.compose.material.icons.outlined.FavoriteBorder
-import androidx.compose.material.icons.outlined.Info
-import androidx.compose.material.icons.outlined.MoreVert
-import androidx.compose.material.icons.outlined.Sell
-import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -92,7 +80,9 @@ import com.boxpix.app.ui.common.formatDuration
 import com.boxpix.app.ui.common.message
 import com.boxpix.app.ui.explorer.MoveSheet
 import com.boxpix.app.ui.explorer.NameDialog
+import com.boxpix.app.ui.icons.Lucide
 import com.boxpix.app.ui.theme.boxpixColors
+import kotlinx.coroutines.delay
 
 /** Screen 05 — always a dark room, whatever the app theme. */
 @Composable
@@ -148,6 +138,7 @@ fun ViewerScreen(
                 isCurrent = page == pagerState.currentPage,
                 streamingUrl = viewModel.streamingUrl(item),
                 headers = state.videoAccess?.headers.orEmpty(),
+                chromeVisible = state.chromeVisible,
                 onTap = viewModel::toggleChrome,
             )
         }
@@ -304,6 +295,7 @@ private fun MediaPage(
     isCurrent: Boolean,
     streamingUrl: String?,
     headers: Map<String, String>,
+    chromeVisible: Boolean,
     onTap: () -> Unit,
 ) {
     Box(
@@ -335,11 +327,16 @@ private fun MediaPage(
                 },
             )
         } else if (isCurrent && streamingUrl != null) {
-            VideoPlayer(url = streamingUrl, headers = headers, modifier = Modifier.fillMaxSize())
+            VideoPlayer(
+                url = streamingUrl,
+                headers = headers,
+                controlsVisible = chromeVisible,
+                modifier = Modifier.fillMaxSize(),
+            )
         } else {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Icon(
-                    Icons.Filled.PlayArrow,
+                    Lucide.PlayFilled,
                     contentDescription = null,
                     tint = Color.White.copy(alpha = 0.7f),
                     modifier = Modifier.size(66.dp),
@@ -359,7 +356,12 @@ private fun MediaPage(
 
 @OptIn(UnstableApi::class)
 @Composable
-private fun VideoPlayer(url: String, headers: Map<String, String>, modifier: Modifier = Modifier) {
+private fun VideoPlayer(
+    url: String,
+    headers: Map<String, String>,
+    controlsVisible: Boolean,
+    modifier: Modifier = Modifier,
+) {
     val context = LocalContext.current
     val player = remember(url) {
         val dataSourceFactory = DefaultHttpDataSource.Factory().setDefaultRequestProperties(headers)
@@ -371,19 +373,159 @@ private fun VideoPlayer(url: String, headers: Map<String, String>, modifier: Mod
                 prepare()
             }
     }
+    var isPlaying by remember(player) { mutableStateOf(false) }
+    var positionMs by remember(player) { mutableStateOf(0L) }
+    var durationMs by remember(player) { mutableStateOf(0L) }
+
     androidx.compose.runtime.DisposableEffect(player) {
-        onDispose { player.release() }
-    }
-    AndroidView(
-        factory = { viewContext ->
-            PlayerView(viewContext).apply {
-                this.player = player
-                useController = true
-                setBackgroundColor(android.graphics.Color.BLACK)
+        val listener = object : androidx.media3.common.Player.Listener {
+            override fun onIsPlayingChanged(playing: Boolean) {
+                isPlaying = playing
             }
-        },
-        modifier = modifier,
-    )
+
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                durationMs = player.duration.coerceAtLeast(0L)
+            }
+        }
+        player.addListener(listener)
+        onDispose {
+            player.removeListener(listener)
+            player.release()
+        }
+    }
+    LaunchedEffect(player, controlsVisible, isPlaying) {
+        while (controlsVisible || isPlaying) {
+            positionMs = player.currentPosition.coerceAtLeast(0L)
+            durationMs = player.duration.coerceAtLeast(0L)
+            delay(250)
+        }
+    }
+
+    Box(modifier = modifier) {
+        AndroidView(
+            factory = { viewContext ->
+                PlayerView(viewContext).apply {
+                    this.player = player
+                    // V1 feedback: the stock controller centers play/pause — ours
+                    // anchors every control at the bottom, in the thumb zone.
+                    useController = false
+                    setBackgroundColor(android.graphics.Color.BLACK)
+                }
+            },
+            modifier = Modifier.fillMaxSize(),
+        )
+        AnimatedVisibility(
+            visible = controlsVisible,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier.align(Alignment.BottomCenter),
+        ) {
+            VideoControls(
+                isPlaying = isPlaying,
+                positionMs = positionMs,
+                durationMs = durationMs,
+                onPlayPause = { if (player.isPlaying) player.pause() else player.play() },
+                onSeek = { player.seekTo(it) },
+                onSkipBack = { player.seekTo((player.currentPosition - SKIP_MS).coerceAtLeast(0L)) },
+                onSkipForward = {
+                    val target = player.currentPosition + SKIP_MS
+                    player.seekTo(if (durationMs > 0) target.coerceAtMost(durationMs) else target)
+                },
+            )
+        }
+    }
+}
+
+private const val SKIP_MS = 10_000L
+
+/** Bottom-anchored transport (V1 feedback): everything reachable with the thumb. */
+@Composable
+private fun VideoControls(
+    isPlaying: Boolean,
+    positionMs: Long,
+    durationMs: Long,
+    onPlayPause: () -> Unit,
+    onSeek: (Long) -> Unit,
+    onSkipBack: () -> Unit,
+    onSkipForward: () -> Unit,
+) {
+    val colors = boxpixColors
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(
+                Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.78f))),
+            )
+            .navigationBarsPadding()
+            .padding(horizontal = 18.dp, vertical = 8.dp),
+    ) {
+        Slider(
+            value = if (durationMs > 0) positionMs / durationMs.toFloat() else 0f,
+            onValueChange = { fraction ->
+                if (durationMs > 0) onSeek((fraction * durationMs).toLong())
+            },
+            colors = SliderDefaults.colors(
+                thumbColor = colors.accent,
+                activeTrackColor = colors.accent,
+                inactiveTrackColor = Color.White.copy(alpha = 0.25f),
+            ),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(26.dp),
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = formatPlaybackTime(positionMs),
+                style = MaterialTheme.typography.labelMedium,
+                color = Color.White.copy(alpha = 0.8f),
+                modifier = Modifier.weight(1f),
+            )
+            IconButton(onClick = onSkipBack) {
+                Icon(
+                    Lucide.SkipBack,
+                    contentDescription = stringResource(R.string.viewer_video_skip_back),
+                    tint = Color.White,
+                    modifier = Modifier.size(22.dp),
+                )
+            }
+            IconButton(onClick = onPlayPause, modifier = Modifier.size(56.dp)) {
+                Icon(
+                    if (isPlaying) Lucide.Pause else Lucide.PlayFilled,
+                    contentDescription = stringResource(
+                        if (isPlaying) R.string.viewer_video_pause else R.string.viewer_video_play,
+                    ),
+                    tint = Color.White,
+                    modifier = Modifier.size(34.dp),
+                )
+            }
+            IconButton(onClick = onSkipForward) {
+                Icon(
+                    Lucide.SkipForward,
+                    contentDescription = stringResource(R.string.viewer_video_skip_forward),
+                    tint = Color.White,
+                    modifier = Modifier.size(22.dp),
+                )
+            }
+            Text(
+                text = formatPlaybackTime(durationMs),
+                style = MaterialTheme.typography.labelMedium,
+                color = Color.White.copy(alpha = 0.8f),
+                textAlign = androidx.compose.ui.text.style.TextAlign.End,
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
+}
+
+private fun formatPlaybackTime(ms: Long): String {
+    val totalSeconds = (ms / 1000).coerceAtLeast(0)
+    val hours = totalSeconds / 3600
+    val minutes = (totalSeconds % 3600) / 60
+    val seconds = totalSeconds % 60
+    return if (hours > 0) "%d:%02d:%02d".format(hours, minutes, seconds) else "%d:%02d".format(minutes, seconds)
 }
 
 @Composable
@@ -416,7 +558,7 @@ private fun ViewerTopBar(
     ) {
         IconButton(onClick = onBack) {
             Icon(
-                Icons.AutoMirrored.Outlined.ArrowBack,
+                Lucide.ArrowLeft,
                 contentDescription = null,
                 tint = Color.White,
                 modifier = Modifier.size(22.dp),
@@ -439,7 +581,7 @@ private fun ViewerTopBar(
         Box {
             IconButton(onClick = onOverflow) {
                 Icon(
-                    Icons.Outlined.MoreVert,
+                    Lucide.EllipsisVertical,
                     contentDescription = null,
                     tint = Color.White,
                     modifier = Modifier.size(22.dp),
@@ -502,17 +644,17 @@ private fun ViewerActionBar(
         horizontalArrangement = Arrangement.spacedBy(4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        ViewerAction(Icons.Outlined.Sell, stringResource(R.string.viewer_action_tag), onClick = onTag)
+        ViewerAction(Lucide.Tag, stringResource(R.string.viewer_action_tag), onClick = onTag)
         ViewerAction(
-            icon = if (isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
+            icon = if (isFavorite) Lucide.HeartFilled else Lucide.Heart,
             label = stringResource(R.string.viewer_action_favourite),
             tint = if (isFavorite) Color(0xFF6FC0B3) else Color.White,
             onClick = onFavorite,
         )
-        ViewerAction(Icons.AutoMirrored.Outlined.DriveFileMove, stringResource(R.string.viewer_action_move), onClick = onMove)
-        ViewerAction(Icons.Outlined.Delete, stringResource(R.string.viewer_action_trash), onClick = onTrash)
-        ViewerAction(Icons.Outlined.Share, stringResource(R.string.viewer_action_share), onClick = onShare)
-        ViewerAction(Icons.Outlined.Info, stringResource(R.string.viewer_action_info), onClick = onInfo)
+        ViewerAction(Lucide.FolderInput, stringResource(R.string.viewer_action_move), onClick = onMove)
+        ViewerAction(Lucide.Trash2, stringResource(R.string.viewer_action_trash), onClick = onTrash)
+        ViewerAction(Lucide.Share2, stringResource(R.string.viewer_action_share), onClick = onShare)
+        ViewerAction(Lucide.Info, stringResource(R.string.viewer_action_info), onClick = onInfo)
     }
 }
 

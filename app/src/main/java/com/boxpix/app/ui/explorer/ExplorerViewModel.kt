@@ -13,9 +13,11 @@ import com.boxpix.app.data.db.MediaDao
 import com.boxpix.app.data.db.MediaItemEntity
 import com.boxpix.app.data.db.TagWithCount
 import com.boxpix.app.data.download.DownloadRequester
+import com.boxpix.app.data.media.MetadataRepository
 import com.boxpix.app.data.net.ConnectionMode
 import com.boxpix.app.data.net.EndpointResolver
 import com.boxpix.app.data.storage.ProtectionRepository
+import com.boxpix.app.data.storage.ScanExclusionRepository
 import com.boxpix.app.data.storage.StorageEnv
 import com.boxpix.app.data.storage.StorageProvider
 import com.boxpix.app.data.tags.TagRepository
@@ -49,12 +51,14 @@ class ExplorerViewModel @Inject constructor(
     private val uiPrefs: UiPrefsStore,
     private val viewerSession: ViewerSession,
     private val protection: ProtectionRepository,
+    private val scanExclusion: ScanExclusionRepository,
     private val tagRepository: TagRepository,
     private val sortSession: SortSession,
     private val searchContext: SearchContext,
     private val mediaDao: MediaDao,
     private val resolver: EndpointResolver,
     private val downloadRequester: DownloadRequester,
+    private val metadataRepository: MetadataRepository,
 ) : ViewModel() {
 
     private val _downloadConfirm =
@@ -116,6 +120,7 @@ class ExplorerViewModel @Inject constructor(
         val isFake: Boolean = false,
         val move: MoveState = MoveState(),
         val protectedPaths: List<String> = emptyList(),
+        val excludedPaths: List<String> = emptyList(),
         val favoritePaths: List<String> = emptyList(),
         /** S2: the box is unreachable, the grid serves the Room index. */
         val offline: Boolean = false,
@@ -156,6 +161,11 @@ class ExplorerViewModel @Inject constructor(
                 _state.update { it.copy(favoritePaths = paths) }
             }
         }
+        viewModelScope.launch {
+            scanExclusion.excludedFolders.collect { folders ->
+                _state.update { it.copy(excludedPaths = folders.map { f -> f.displayPath }) }
+            }
+        }
     }
 
     val allTags = tagRepository.tags
@@ -171,6 +181,16 @@ class ExplorerViewModel @Inject constructor(
         val medias = selectedEntries().filterNot { it.isDirectory }
         viewModelScope.launch {
             medias.forEach { tagRepository.addTag(it.toMediaRef(), tag.id) }
+        }
+    }
+
+    /** Batch metadata (V1 feedback): tags + capture date + place on every selected media. */
+    fun applyMetadataToSelection(tagIds: Set<Long>, takenAtEpochSeconds: Long?, location: String?) {
+        val medias = selectedEntries().filterNot { it.isDirectory }.map { it.toMediaRef() }
+        if (medias.isEmpty()) return
+        viewModelScope.launch {
+            metadataRepository.applyToSelection(medias, tagIds, takenAtEpochSeconds, location)
+            clearSelection()
         }
     }
 
@@ -293,6 +313,19 @@ class ExplorerViewModel @Inject constructor(
                 protection.unprotect(folder.pathB64)
             } else {
                 protection.protect(folder)
+            }
+            clearSelection()
+        }
+    }
+
+    /** V1 feedback: "Exclude from scan" from a folder's context actions. */
+    fun toggleExclusion() {
+        val folder = singleSelectedFolder() ?: return
+        viewModelScope.launch {
+            if (folder.displayPath in _state.value.excludedPaths) {
+                scanExclusion.include(folder.pathB64)
+            } else {
+                scanExclusion.exclude(folder)
             }
             clearSelection()
         }

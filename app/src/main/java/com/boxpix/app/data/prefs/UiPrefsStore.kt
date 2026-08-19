@@ -119,6 +119,15 @@ class UiPrefsStore @Inject constructor(
         context.uiPrefsDataStore.edit { it[KEY_APP_LOCK] = enabled }
     }
 
+    /** Sort mode's first-open coach marks — shown once. */
+    val sortCoachSeen: Flow<Boolean> = context.uiPrefsDataStore.data
+        .map { it[KEY_SORT_COACH_SEEN] ?: false }
+        .distinctUntilChanged()
+
+    suspend fun setSortCoachSeen() {
+        context.uiPrefsDataStore.edit { it[KEY_SORT_COACH_SEEN] = true }
+    }
+
     /** M7: this device is the dedicated night worker. */
     val workerModeEnabled: Flow<Boolean> = context.uiPrefsDataStore.data
         .map { it[KEY_WORKER_MODE] ?: false }
@@ -166,5 +175,6 @@ class UiPrefsStore @Inject constructor(
         private val KEY_ACCENT = stringPreferencesKey("accent_preset")
         private val KEY_APP_LOCK = booleanPreferencesKey("app_lock_enabled")
         private val KEY_WORKER_MODE = booleanPreferencesKey("worker_mode_enabled")
+        private val KEY_SORT_COACH_SEEN = booleanPreferencesKey("sort_coach_seen")
     }
 }

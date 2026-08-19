@@ -84,6 +84,10 @@
     <string name="viewer_info_close">Close</string>
     <string name="viewer_video_fake_note">Video playback streams from the real Freebox — switch off fake data to play.</string>
     <string name="viewer_share_title">Share</string>
+    <string name="viewer_video_play">Play</string>
+    <string name="viewer_video_pause">Pause</string>
+    <string name="viewer_video_skip_back">Back 10 seconds</string>
+    <string name="viewer_video_skip_forward">Forward 10 seconds</string>
 
     <!-- Downloads -->
     <string name="download_channel">Downloads</string>
@@ -92,6 +96,9 @@
         <item quantity="one">%1$d file saved to Downloads</item>
         <item quantity="other">%1$d files saved to Downloads</item>
     </plurals>
+    <string name="download_done_title">Saved to device</string>
+    <string name="download_failed_count">%1$d failed</string>
+    <string name="settings_download_queue">Downloads</string>
     <string name="viewer_menu_save">Save to device</string>
     <string name="download_confirm_title">Download over mobile data?</string>
     <string name="download_confirm_message">%1$s will be downloaded over a metered connection.</string>
@@ -163,6 +170,9 @@
     <string name="search_clear">Clear filters</string>
     <string name="search_empty">Nothing matches yet</string>
     <string name="search_empty_hint">Try a shorter file name, or drop a filter — the others still apply.</string>
+    <string name="search_type_photos">Photos</string>
+    <string name="search_type_videos">Videos</string>
+    <string name="search_type_others">Others</string>
     <string name="search_date_filter">Date range</string>
     <string name="search_date_any">Any date</string>
     <string name="search_in_folder">In %1$s</string>
@@ -183,6 +193,14 @@
     <string name="sort_empty">Nothing left to sort here.</string>
     <string name="sort_shortcuts_note">Pin order drives the destination row. Quick tags apply without leaving sort mode.</string>
     <string name="sort_pick_here">Pin this folder</string>
+    <string name="sort_coach_pins_title">Pinned destinations</string>
+    <string name="sort_coach_pins_body">One tap moves the photo into a pinned folder. Pin, unpin and reorder them from Edit.</string>
+    <string name="sort_coach_tags_title">Quick tags</string>
+    <string name="sort_coach_tags_body">Toggle a tag without leaving sort mode. The list is yours to edit too.</string>
+    <string name="sort_coach_swipe_title">Swipe up to skip</string>
+    <string name="sort_coach_swipe_body">Not sure yet? Swipe the photo up to keep it where it is and see the next one.</string>
+    <string name="sort_coach_next">Next</string>
+    <string name="sort_coach_done">Got it</string>
 
     <!-- Dialogs -->
     <string name="dialog_trash_title">Move to trash?</string>
@@ -197,6 +215,22 @@
     <string name="dialog_create">Create</string>
     <string name="dialog_rename">Rename</string>
     <string name="dialog_cancel">Cancel</string>
+    <string name="dialog_ok">OK</string>
+
+    <!-- Batch metadata edit -->
+    <string name="metadata_sheet_title">Edit metadata</string>
+    <plurals name="metadata_sheet_count">
+        <item quantity="one">Applied to %1$d item</item>
+        <item quantity="other">Applied to %1$d items</item>
+    </plurals>
+    <string name="metadata_tags_label">Add tags</string>
+    <string name="metadata_date_label">Date taken</string>
+    <string name="metadata_unchanged">Unchanged</string>
+    <string name="metadata_location_label">Location</string>
+    <string name="metadata_location_hint">e.g. Grandma\'s house, Lyon</string>
+    <string name="metadata_sheet_hint">Changes apply to the library instantly; they are embedded into JPEG files only when the XMP queue is on.</string>
+    <string name="metadata_apply">Apply</string>
+    <string name="explorer_action_metadata">Edit metadata</string>
 
     <!-- Move sheet -->
     <plurals name="move_title">
@@ -226,6 +260,11 @@
     <string name="theme_dark">Dark</string>
     <string name="settings_accent">Accent colour</string>
     <string name="settings_group_sync">Synchronisation</string>
+    <string name="settings_group_scan">Scan</string>
+    <string name="settings_excluded_none">No excluded folders</string>
+    <string name="settings_excluded_hint">Select a folder in the Explorer and tap the crossed-eye icon to keep it out of the scan.</string>
+    <string name="explorer_action_exclude">Exclude from scan</string>
+    <string name="explorer_action_include">Include in scan again</string>
     <string name="settings_thumb_queue">Thumbnail queue</string>
     <string name="settings_xmp_queue">XMP queue</string>
     <plurals name="settings_pending">

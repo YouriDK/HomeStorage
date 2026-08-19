@@ -19,13 +19,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.outlined.ChevronRight
-import androidx.compose.material.icons.outlined.Folder
-import androidx.compose.material.icons.outlined.Storage
-import androidx.compose.material.icons.outlined.Wifi
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -54,6 +47,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.boxpix.app.R
 import com.boxpix.app.data.storage.StorageEntry
 import com.boxpix.app.ui.common.message
+import com.boxpix.app.ui.icons.Lucide
 import com.boxpix.app.ui.onboarding.OnboardingViewModel.Step
 import com.boxpix.app.ui.theme.boxpixColors
 
@@ -138,7 +132,7 @@ private fun StartContent(
             onClick = onConnect,
             enabled = !state.busy,
             leadingIcon = {
-                Icon(Icons.Outlined.Wifi, contentDescription = null, modifier = Modifier.size(20.dp))
+                Icon(Lucide.Wifi, contentDescription = null, modifier = Modifier.size(20.dp))
             },
         )
 
@@ -224,7 +218,7 @@ private fun AdvancedCard(
             )
             if (state.hasStoredToken) {
                 Icon(
-                    Icons.Filled.Check,
+                    Lucide.Check,
                     contentDescription = null,
                     tint = colors.accent,
                     modifier = Modifier.size(16.dp),
@@ -425,7 +419,7 @@ private fun DiskRow(entry: StorageEntry, selected: Boolean, onClick: () -> Unit)
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
-            Icons.Outlined.Storage,
+            Lucide.HardDrive,
             contentDescription = null,
             tint = if (selected) colors.accent else colors.dim,
             modifier = Modifier.size(22.dp),
@@ -442,9 +436,9 @@ private fun DiskRow(entry: StorageEntry, selected: Boolean, onClick: () -> Unit)
             )
         }
         if (selected) {
-            Icon(Icons.Filled.Check, contentDescription = null, tint = colors.accent, modifier = Modifier.size(18.dp))
+            Icon(Lucide.Check, contentDescription = null, tint = colors.accent, modifier = Modifier.size(18.dp))
         } else {
-            Icon(Icons.Outlined.ChevronRight, contentDescription = null, tint = colors.faint, modifier = Modifier.size(18.dp))
+            Icon(Lucide.ChevronRight, contentDescription = null, tint = colors.faint, modifier = Modifier.size(18.dp))
         }
     }
 }
@@ -480,7 +474,7 @@ private fun RootFolderHeader(step: Step.ChooseDisk, onUpOneLevel: () -> Unit) {
         if (step.folderStack.isNotEmpty()) {
             TextButton(onClick = onUpOneLevel) {
                 Icon(
-                    Icons.AutoMirrored.Outlined.ArrowBack,
+                    Lucide.ArrowLeft,
                     contentDescription = null,
                     tint = colors.accent,
                     modifier = Modifier.size(16.dp),
@@ -509,7 +503,7 @@ private fun FolderRow(entry: StorageEntry, onClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
-            Icons.Outlined.Folder,
+            Lucide.Folder,
             contentDescription = null,
             tint = colors.dim,
             modifier = Modifier.size(20.dp),
@@ -522,7 +516,7 @@ private fun FolderRow(entry: StorageEntry, onClick: () -> Unit) {
             modifier = Modifier.weight(1f),
             maxLines = 1,
         )
-        Icon(Icons.Outlined.ChevronRight, contentDescription = null, tint = colors.faint, modifier = Modifier.size(18.dp))
+        Icon(Lucide.ChevronRight, contentDescription = null, tint = colors.faint, modifier = Modifier.size(18.dp))
     }
 }
 

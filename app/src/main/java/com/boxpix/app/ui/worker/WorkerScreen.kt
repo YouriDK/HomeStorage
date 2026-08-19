@@ -25,8 +25,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -56,6 +54,7 @@ import com.boxpix.app.data.net.EndpointResolver
 import com.boxpix.app.data.prefs.UiPrefsStore
 import com.boxpix.app.data.storage.StorageEnv
 import com.boxpix.app.data.trash.TrashRepository
+import com.boxpix.app.ui.icons.Lucide
 import com.boxpix.app.ui.theme.boxpixColors
 import com.boxpix.app.work.WorkerService
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -283,7 +282,7 @@ fun WorkerScreen(
         ) {
             IconButton(onClick = onBack) {
                 Icon(
-                    Icons.AutoMirrored.Outlined.ArrowBack,
+                    Lucide.ArrowLeft,
                     contentDescription = null,
                     tint = colors.text,
                     modifier = Modifier.size(22.dp),

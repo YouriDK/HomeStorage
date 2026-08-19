@@ -3,6 +3,7 @@ package com.boxpix.app.ui.search
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -19,13 +20,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material3.DatePickerDefaults
 import androidx.compose.material3.DateRangePicker
 import androidx.compose.material3.DatePickerDialog
@@ -56,9 +54,11 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.boxpix.app.R
+import com.boxpix.app.data.db.SearchQueryBuilder
 import com.boxpix.app.ui.common.PlaceholderTones
 import com.boxpix.app.ui.common.ThumbRequest
 import com.boxpix.app.ui.common.formatDate
+import com.boxpix.app.ui.icons.Lucide
 import com.boxpix.app.ui.theme.boxpixColors
 import com.boxpix.app.ui.viewer.MediaRef
 
@@ -89,7 +89,7 @@ fun SearchScreen(
         ) {
             IconButton(onClick = onBack) {
                 Icon(
-                    Icons.AutoMirrored.Outlined.ArrowBack,
+                    Lucide.ArrowLeft,
                     contentDescription = null,
                     tint = colors.text,
                     modifier = Modifier.size(22.dp),
@@ -128,9 +128,23 @@ fun SearchScreen(
         }
 
         Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+            modifier = Modifier
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = 14.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
+            val typeLabels = listOf(
+                SearchQueryBuilder.TypeFilter.PHOTO to stringResource(R.string.search_type_photos),
+                SearchQueryBuilder.TypeFilter.VIDEO to stringResource(R.string.search_type_videos),
+                SearchQueryBuilder.TypeFilter.OTHER to stringResource(R.string.search_type_others),
+            )
+            typeLabels.forEach { (type, label) ->
+                FilterChip(
+                    label = label,
+                    selected = type in state.selectedTypes,
+                    onClick = { viewModel.toggleType(type) },
+                )
+            }
             FilterChip(
                 label = if (state.fromEpochSeconds != null) {
                     "${formatDate(state.fromEpochSeconds!!)} – ${formatDate(state.toEpochSeconds ?: state.fromEpochSeconds!!)}"
@@ -269,7 +283,7 @@ private fun FilterChip(
         if (trailingClose) {
             Spacer(Modifier.size(6.dp))
             Icon(
-                Icons.Outlined.Close,
+                Lucide.X,
                 contentDescription = null,
                 tint = colors.accent,
                 modifier = Modifier.size(13.dp),
@@ -298,7 +312,7 @@ private fun ResultCell(item: MediaRef, onClick: () -> Unit) {
         )
         if (item.isVideo) {
             Icon(
-                Icons.Filled.PlayArrow,
+                Lucide.PlayFilled,
                 contentDescription = null,
                 tint = Color.White,
                 modifier = Modifier

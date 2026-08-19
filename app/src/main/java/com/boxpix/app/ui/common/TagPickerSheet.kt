@@ -11,8 +11,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -32,6 +30,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.boxpix.app.R
 import com.boxpix.app.data.db.TagWithCount
+import com.boxpix.app.ui.icons.Lucide
 import com.boxpix.app.ui.theme.boxpixColors
 
 /**
@@ -89,7 +88,7 @@ fun TagPickerSheet(
                         if (selected) {
                             Spacer(Modifier.size(10.dp))
                             Icon(
-                                Icons.Filled.Check,
+                                Lucide.Check,
                                 contentDescription = null,
                                 tint = colors.accent,
                                 modifier = Modifier.size(16.dp),

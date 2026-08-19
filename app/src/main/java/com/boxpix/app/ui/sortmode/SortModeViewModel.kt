@@ -55,6 +55,8 @@ class SortModeViewModel @Inject constructor(
         val confirmation: String? = null,
         val shortcutsOpen: Boolean = false,
         val pickerOpen: Boolean = false,
+        /** First-open coach marks (V1 feedback): pins, quick tags, swipe. */
+        val coachVisible: Boolean = false,
         val error: FreeboxError? = null,
     ) {
         val current: MediaRef? get() = queue.getOrNull(index)
@@ -94,6 +96,16 @@ class SortModeViewModel @Inject constructor(
                 _state.update { it.copy(quickTags = tags) }
             }
         }
+        viewModelScope.launch {
+            if (!uiPrefs.sortCoachSeen.first()) {
+                _state.update { it.copy(coachVisible = true) }
+            }
+        }
+    }
+
+    fun dismissCoach() {
+        _state.update { it.copy(coachVisible = false) }
+        viewModelScope.launch { uiPrefs.setSortCoachSeen() }
     }
 
     // Actions on the current photo

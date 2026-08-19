@@ -75,12 +75,17 @@ class XmpQueueProcessor @Inject constructor(
 
     /** Null on success, an error label otherwise. */
     private suspend fun processJob(providerId: String, job: WorkQueueEntity): String? {
-        val keywords = tags.keywordsForMedia(providerId, job.pathB64)
-        if (keywords.isEmpty()) return null // additive-only: nothing to write
+        val row = mediaDao.byPath(providerId, job.pathB64)
+        val metadata = XmpMetadata(
+            keywords = tags.keywordsForMedia(providerId, job.pathB64),
+            takenAtEpochSeconds = row?.takeIf { it.takenAtManual }?.takenAtEpochSeconds,
+            location = row?.locationText,
+        )
+        if (metadata.isEmpty) return null // nothing to write
 
         val original = provider.download(job.pathB64).getOrNull()
             ?: return "download_failed"
-        val rewritten = writer.withKeywords(original, keywords)
+        val rewritten = writer.withMetadata(original, metadata)
             ?: return "rewrite_failed"
         if (rewritten.contentEquals(original)) return null // keywords already embedded
 
