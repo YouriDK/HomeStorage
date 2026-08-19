@@ -39,7 +39,10 @@ class XmpQueueProcessorTest {
     private val clock = Clock.fixed(Instant.ofEpochSecond(1_760_000_000), ZoneOffset.UTC)
     private val pid = TrashRepository.PROVIDER_FAKE
 
-    private fun kotlinx.coroutines.test.TestScope.buildStack(fakeMode: Boolean = true): Pair<TagRepository, XmpQueueProcessor> {
+    private fun kotlinx.coroutines.test.TestScope.buildStack(
+        fakeMode: Boolean = true,
+        xmpEnabled: Boolean = true,
+    ): Pair<TagRepository, XmpQueueProcessor> {
         val env = StorageEnv(useFakeProvider = flowOf(fakeMode), fakeControls = provider)
         val repo = TagRepository(
             tagDao = tagDao,
@@ -56,6 +59,7 @@ class XmpQueueProcessorTest {
                 )
             },
             scope = this,
+            xmpPolicy = { xmpEnabled },
         )
         val processor = XmpQueueProcessor(
             provider = provider,
@@ -65,8 +69,26 @@ class XmpQueueProcessorTest {
             writer = writer,
             env = env,
             network = { false }, // metered: real mode must refuse, fake must not care
+            xmpPolicy = { xmpEnabled },
         )
         return repo to processor
+    }
+
+    @Test
+    fun `switch off - even pre-existing jobs stay untouched`() = runTest {
+        val (_, processor) = buildStack(xmpEnabled = false)
+        queueDao.upsert(
+            WorkQueueEntity(
+                providerId = pid, type = WorkQueueEntity.TYPE_XMP, pathB64 = "x",
+                displayPath = "/Photos/x.jpg", enqueuedMtime = 0,
+                status = WorkQueueEntity.STATUS_PENDING, attempts = 0, lastError = null,
+            ),
+        )
+        processor.process(10)
+        assertEquals(
+            WorkQueueEntity.STATUS_PENDING,
+            queueDao.find(pid, WorkQueueEntity.TYPE_XMP, "x")!!.status,
+        )
     }
 
     private suspend fun firstFamilyJpeg() =

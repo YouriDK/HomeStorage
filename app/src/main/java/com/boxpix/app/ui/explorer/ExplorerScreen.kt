@@ -78,6 +78,7 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.boxpix.app.R
+import com.boxpix.app.data.net.ConnectionMode
 import com.boxpix.app.data.prefs.SortOrder
 import com.boxpix.app.data.storage.StorageEntry
 import com.boxpix.app.ui.common.EmptyFolderView
@@ -141,6 +142,7 @@ fun ExplorerScreen(
                     canRename = state.selection.size == 1,
                     canProtect = singleFolder != null,
                     isProtected = singleFolder?.displayPath in state.protectedPaths,
+                    writeEnabled = !state.offline,
                     onClose = viewModel::clearSelection,
                     onRename = { showRenameDialog = true },
                     onTag = { showTagPicker = true },
@@ -165,7 +167,21 @@ fun ExplorerScreen(
                 SortRow(
                     sort = state.sort,
                     onSortSelected = viewModel::setSort,
+                    newFolderEnabled = !state.offline,
                     onNewFolder = { showNewFolderDialog = true },
+                )
+            }
+
+            if (state.offline) {
+                Text(
+                    text = stringResource(R.string.offline_banner),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = boxpixColors.dim,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 4.dp)
+                        .background(boxpixColors.elevated, RoundedCornerShape(10.dp))
+                        .padding(12.dp),
                 )
             }
 
@@ -323,11 +339,14 @@ private fun ExplorerTopBar(
                 )
             }
         }
-        if (state.isFake) {
-            Badge(stringResource(R.string.badge_fake))
-            Spacer(Modifier.size(4.dp))
+        when {
+            state.isFake -> Badge(stringResource(R.string.badge_fake), dot = true)
+            state.offline -> Badge(stringResource(R.string.badge_offline), dot = false)
+            state.connection == ConnectionMode.LAN -> Badge(stringResource(R.string.badge_lan), dot = true)
+            state.connection == ConnectionMode.REMOTE -> Badge(stringResource(R.string.badge_remote), dot = false)
         }
-        if (state.media.isNotEmpty()) {
+        Spacer(Modifier.size(4.dp))
+        if (state.media.isNotEmpty() && !state.offline) {
             IconButton(onClick = onOpenSortMode) {
                 Icon(
                     Icons.Outlined.Swipe,
@@ -357,7 +376,7 @@ private fun ExplorerTopBar(
 }
 
 @Composable
-private fun Badge(label: String) {
+private fun Badge(label: String, dot: Boolean) {
     val colors = boxpixColors
     Row(
         modifier = Modifier
@@ -366,12 +385,14 @@ private fun Badge(label: String) {
             .padding(horizontal = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(
-            modifier = Modifier
-                .size(7.dp)
-                .background(colors.accent, CircleShape),
-        )
-        Spacer(Modifier.size(6.dp))
+        if (dot) {
+            Box(
+                modifier = Modifier
+                    .size(7.dp)
+                    .background(colors.accent, CircleShape),
+            )
+            Spacer(Modifier.size(6.dp))
+        }
         Text(label, style = MaterialTheme.typography.labelMedium, color = colors.dim)
     }
 }
@@ -380,6 +401,7 @@ private fun Badge(label: String) {
 private fun SortRow(
     sort: SortOrder,
     onSortSelected: (SortOrder) -> Unit,
+    newFolderEnabled: Boolean,
     onNewFolder: () -> Unit,
 ) {
     val colors = boxpixColors
@@ -417,18 +439,19 @@ private fun SortRow(
             }
         }
         Spacer(Modifier.weight(1f))
-        TextButton(onClick = onNewFolder) {
+        TextButton(onClick = onNewFolder, enabled = newFolderEnabled) {
+            val tint = if (newFolderEnabled) colors.accent else colors.faint
             Icon(
                 Icons.Outlined.Add,
                 contentDescription = null,
-                tint = colors.accent,
+                tint = tint,
                 modifier = Modifier.size(16.dp),
             )
             Spacer(Modifier.size(6.dp))
             Text(
                 text = stringResource(R.string.explorer_new_folder),
                 style = MaterialTheme.typography.bodySmall,
-                color = colors.accent,
+                color = tint,
             )
         }
     }
@@ -449,6 +472,7 @@ private fun SelectionBar(
     canRename: Boolean,
     canProtect: Boolean,
     isProtected: Boolean,
+    writeEnabled: Boolean,
     onClose: () -> Unit,
     onRename: () -> Unit,
     onTag: () -> Unit,
@@ -476,7 +500,7 @@ private fun SelectionBar(
         )
         Spacer(Modifier.weight(1f))
         if (canProtect) {
-            IconButton(onClick = onToggleProtect) {
+            IconButton(onClick = onToggleProtect, enabled = writeEnabled) {
                 Icon(
                     if (isProtected) Icons.Outlined.LockOpen else Icons.Outlined.Lock,
                     contentDescription = stringResource(
@@ -488,7 +512,7 @@ private fun SelectionBar(
             }
         }
         if (canRename) {
-            IconButton(onClick = onRename) {
+            IconButton(onClick = onRename, enabled = writeEnabled) {
                 Icon(
                     Icons.Outlined.Edit,
                     contentDescription = stringResource(R.string.explorer_action_rename),
@@ -505,7 +529,7 @@ private fun SelectionBar(
                 modifier = Modifier.size(22.dp),
             )
         }
-        IconButton(onClick = onMove) {
+        IconButton(onClick = onMove, enabled = writeEnabled) {
             Icon(
                 Icons.AutoMirrored.Outlined.DriveFileMove,
                 contentDescription = stringResource(R.string.explorer_action_move),
@@ -513,7 +537,7 @@ private fun SelectionBar(
                 modifier = Modifier.size(22.dp),
             )
         }
-        IconButton(onClick = onTrash) {
+        IconButton(onClick = onTrash, enabled = writeEnabled) {
             Icon(
                 Icons.Outlined.Delete,
                 contentDescription = stringResource(R.string.explorer_action_trash),

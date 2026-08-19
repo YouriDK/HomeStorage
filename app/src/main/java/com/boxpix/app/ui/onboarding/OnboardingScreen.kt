@@ -35,6 +35,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
@@ -63,6 +66,7 @@ fun OnboardingScreen(viewModel: OnboardingViewModel = hiltViewModel()) {
             onConnect = viewModel::connect,
             onToggleAdvanced = viewModel::toggleAdvanced,
             onHostChange = viewModel::setHost,
+            onImport = viewModel::importConfig,
         )
 
         Step.Pairing -> PairingContent(onCancel = viewModel::cancelPairing)
@@ -83,6 +87,7 @@ private fun StartContent(
     onConnect: () -> Unit,
     onToggleAdvanced: () -> Unit,
     onHostChange: (String) -> Unit,
+    onImport: (ByteArray, String) -> Unit,
 ) {
     val colors = boxpixColors
     Column(
@@ -146,7 +151,7 @@ private fun StartContent(
         }
 
         AnimatedVisibility(visible = state.advancedOpen) {
-            AdvancedCard(state = state, onHostChange = onHostChange)
+            AdvancedCard(state = state, onHostChange = onHostChange, onImport = onImport)
         }
 
         Spacer(Modifier.height(24.dp))
@@ -157,8 +162,30 @@ private fun StartContent(
 private fun AdvancedCard(
     state: OnboardingViewModel.UiState,
     onHostChange: (String) -> Unit,
+    onImport: (ByteArray, String) -> Unit,
 ) {
     val colors = boxpixColors
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var pendingImport by remember { mutableStateOf<ByteArray?>(null) }
+    val filePicker = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        uri ?: return@rememberLauncherForActivityResult
+        context.contentResolver.openInputStream(uri)?.use { pendingImport = it.readBytes() }
+    }
+
+    pendingImport?.let { bytes ->
+        com.boxpix.app.ui.explorer.NameDialog(
+            title = stringResource(R.string.import_passphrase_title),
+            initialValue = "",
+            confirmLabel = stringResource(R.string.dialog_import),
+            onConfirm = { passphrase ->
+                pendingImport = null
+                if (passphrase.isNotBlank()) onImport(bytes, passphrase)
+            },
+            onDismiss = { pendingImport = null },
+        )
+    }
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -211,6 +238,20 @@ private fun AdvancedCard(
                 ),
                 style = MaterialTheme.typography.bodySmall,
                 color = if (state.hasStoredToken) colors.accent else colors.dim,
+            )
+        }
+        TextButton(onClick = { filePicker.launch(arrayOf("*/*")) }) {
+            Text(
+                text = stringResource(R.string.onboarding_import_config),
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.accent,
+            )
+        }
+        if (state.importFailed) {
+            Text(
+                text = stringResource(R.string.import_failed),
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.dim,
             )
         }
     }

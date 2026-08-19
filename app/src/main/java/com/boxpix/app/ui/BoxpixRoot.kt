@@ -14,6 +14,7 @@ import androidx.navigation.compose.rememberNavController
 import com.boxpix.app.ui.explorer.ExplorerScreen
 import com.boxpix.app.ui.onboarding.OnboardingScreen
 import com.boxpix.app.ui.search.SearchScreen
+import com.boxpix.app.ui.settings.ManageTagsScreen
 import com.boxpix.app.ui.settings.SettingsScreen
 import com.boxpix.app.ui.sortmode.SortModeScreen
 import com.boxpix.app.ui.theme.boxpixColors
@@ -64,7 +65,11 @@ private fun MainNavHost() {
             SettingsScreen(
                 onBack = { nav.popBackStack() },
                 onOpenTrash = { nav.navigate("trash") },
+                onOpenTags = { nav.navigate("managetags") },
             )
+        }
+        composable("managetags") {
+            ManageTagsScreen(onBack = { nav.popBackStack() })
         }
         composable("trash") {
             TrashScreen(onBack = { nav.popBackStack() })

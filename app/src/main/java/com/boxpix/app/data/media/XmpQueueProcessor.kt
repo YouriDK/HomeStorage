@@ -6,6 +6,7 @@ import com.boxpix.app.data.db.WorkQueueDao
 import com.boxpix.app.data.db.WorkQueueEntity
 import com.boxpix.app.data.freebox.api.PathCodec
 import com.boxpix.app.data.net.NetworkStatus
+import com.boxpix.app.data.prefs.XmpPolicy
 import com.boxpix.app.data.storage.StorageEnv
 import com.boxpix.app.data.storage.StorageProvider
 import com.boxpix.app.data.tags.TagRepository
@@ -33,6 +34,7 @@ class XmpQueueProcessor @Inject constructor(
     private val writer: XmpTagWriter,
     private val env: StorageEnv,
     private val network: NetworkStatus,
+    private val xmpPolicy: XmpPolicy,
 ) {
 
     private val mutex = Mutex()
@@ -40,6 +42,7 @@ class XmpQueueProcessor @Inject constructor(
     suspend fun process(limit: Int) {
         if (!mutex.tryLock()) return
         try {
+            if (!xmpPolicy.enabled()) return // owner's switch (covers pre-existing jobs too)
             val useFake = env.useFakeProvider.first()
             if (!useFake && !network.isUnmetered()) return // wifi only on the real box
             val providerId =

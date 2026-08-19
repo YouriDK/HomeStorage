@@ -7,6 +7,7 @@ import com.boxpix.app.data.db.TagWithCount
 import com.boxpix.app.data.db.WorkQueueDao
 import com.boxpix.app.data.db.WorkQueueEntity
 import com.boxpix.app.data.prefs.DeviceIdentity
+import com.boxpix.app.data.prefs.XmpPolicy
 import com.boxpix.app.data.storage.StorageEnv
 import com.boxpix.app.data.trash.TrashRepository
 import com.boxpix.app.ui.viewer.MediaRef
@@ -45,6 +46,7 @@ class TagRepository @Inject constructor(
     private val clock: Clock,
     private val journal: Lazy<TagsJournal>,
     private val scope: CoroutineScope,
+    private val xmpPolicy: XmpPolicy,
 ) {
 
     val tags: Flow<List<TagWithCount>> =
@@ -133,6 +135,43 @@ class TagRepository @Inject constructor(
         tagDao.remapPath(currentProviderId(), oldPathB64, newPathB64, newDisplayPath)
     }
 
+    /** False when the new name already belongs to another tag (offer a merge instead). */
+    suspend fun renameTag(tagId: Long, newName: String): Boolean {
+        val trimmed = newName.trim()
+        if (trimmed.isEmpty()) return false
+        val tag = tagDao.byId(tagId) ?: return false
+        if (tag.isSystem) return false
+        val existing = tagDao.byName(tag.providerId, trimmed)
+        if (existing != null && existing.id != tagId) return false
+        tagDao.rename(tagId, trimmed)
+        record("tag_rename", tag = "${tag.name} -> $trimmed")
+        scheduleExport()
+        return true
+    }
+
+    suspend fun deleteTag(tagId: Long) {
+        val tag = tagDao.byId(tagId) ?: return
+        if (tag.isSystem) return
+        tagDao.deleteLinksFor(tagId)
+        tagDao.deleteTag(tagId)
+        record("tag_delete", tag = tag.name)
+        scheduleExport()
+    }
+
+    /** SPEC §2 merge with visible impact: returns how many links moved. */
+    suspend fun mergeTags(fromId: Long, intoId: Long): Int {
+        val from = tagDao.byId(fromId) ?: return 0
+        val into = tagDao.byId(intoId) ?: return 0
+        if (from.isSystem || into.isSystem || fromId == intoId) return 0
+        val links = tagDao.linksFor(fromId)
+        links.forEach { tagDao.link(it.copy(tagId = intoId)) } // REPLACE dedupes
+        tagDao.deleteLinksFor(fromId)
+        tagDao.deleteTag(fromId)
+        record("tag_merge", tag = "${from.name} -> ${into.name}")
+        scheduleExport()
+        return links.size
+    }
+
     suspend fun ensureFavorites(providerId: String): TagEntity {
         tagDao.byName(providerId, FAVORITES)?.let { return it }
         tagDao.insert(TagEntity(providerId = providerId, name = FAVORITES, pinned = true, isSystem = true))
@@ -149,6 +188,7 @@ class TagRepository @Inject constructor(
     }
 
     private suspend fun enqueueXmp(providerId: String, media: MediaRef) {
+        if (!xmpPolicy.enabled()) return // owner's switch: no file rewrites until enabled
         if (media.mimeType != "image/jpeg") return // spike verdict: JPEG only
         queueDao.upsert(
             WorkQueueEntity(

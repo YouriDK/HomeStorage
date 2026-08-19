@@ -32,6 +32,8 @@ class Reconciler @Inject constructor(
     private val thumbnails: ThumbnailRepository,
     private val env: StorageEnv,
     private val rootLocator: RootLocator,
+    private val syncStatus: SyncStatus,
+    private val clock: java.time.Clock,
 ) {
 
     private val passMutex = Mutex()
@@ -48,6 +50,7 @@ class Reconciler @Inject constructor(
             val providerId = currentProviderId()
             val scanned = scan(providerId, root, maxFolders)
             val processed = processQueue(providerId, processLimit)
+            syncStatus.recordPass(clock.instant().epochSecond)
             log("pass done: $scanned folders scanned, $processed jobs processed")
         } finally {
             passMutex.unlock()

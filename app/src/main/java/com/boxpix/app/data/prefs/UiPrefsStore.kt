@@ -81,6 +81,44 @@ class UiPrefsStore @Inject constructor(
         }
     }
 
+    /**
+     * XMP write-through master switch — OFF by default (owner's decision at M6):
+     * tags live in Room + tags.json; no media file is rewritten until enabled.
+     */
+    val xmpWriteEnabled: Flow<Boolean> = context.uiPrefsDataStore.data
+        .map { it[KEY_XMP_ENABLED] ?: false }
+        .distinctUntilChanged()
+
+    suspend fun setXmpWriteEnabled(enabled: Boolean) {
+        context.uiPrefsDataStore.edit { it[KEY_XMP_ENABLED] = enabled }
+    }
+
+    /** Theme: SYSTEM (default), LIGHT or DARK. */
+    val themeMode: Flow<String> = context.uiPrefsDataStore.data
+        .map { it[KEY_THEME] ?: THEME_SYSTEM }
+        .distinctUntilChanged()
+
+    suspend fun setThemeMode(mode: String) {
+        context.uiPrefsDataStore.edit { it[KEY_THEME] = mode }
+    }
+
+    /** Accent preset key; "teal" is the design default. */
+    val accentPreset: Flow<String> = context.uiPrefsDataStore.data
+        .map { it[KEY_ACCENT] ?: ACCENT_DEFAULT }
+        .distinctUntilChanged()
+
+    suspend fun setAccentPreset(preset: String) {
+        context.uiPrefsDataStore.edit { it[KEY_ACCENT] = preset }
+    }
+
+    val appLockEnabled: Flow<Boolean> = context.uiPrefsDataStore.data
+        .map { it[KEY_APP_LOCK] ?: false }
+        .distinctUntilChanged()
+
+    suspend fun setAppLockEnabled(enabled: Boolean) {
+        context.uiPrefsDataStore.edit { it[KEY_APP_LOCK] = enabled }
+    }
+
     /** Stable per-installation identity, feeds the tags journal's who/what/when. */
     suspend fun deviceId(): String {
         val existing = context.uiPrefsDataStore.data.map { it[KEY_DEVICE_ID] }.first()
@@ -106,8 +144,17 @@ class UiPrefsStore @Inject constructor(
         const val MAX_COLUMNS = 4
         const val DEFAULT_COLUMNS = 3
 
+        const val THEME_SYSTEM = "system"
+        const val THEME_LIGHT = "light"
+        const val THEME_DARK = "dark"
+        const val ACCENT_DEFAULT = "teal"
+
         private val KEY_GRID_COLUMNS = intPreferencesKey("grid_columns")
         private val KEY_USE_FAKE = booleanPreferencesKey("use_fake_provider")
         private val KEY_DEVICE_ID = stringPreferencesKey("device_id")
+        private val KEY_XMP_ENABLED = booleanPreferencesKey("xmp_write_enabled")
+        private val KEY_THEME = stringPreferencesKey("theme_mode")
+        private val KEY_ACCENT = stringPreferencesKey("accent_preset")
+        private val KEY_APP_LOCK = booleanPreferencesKey("app_lock_enabled")
     }
 }

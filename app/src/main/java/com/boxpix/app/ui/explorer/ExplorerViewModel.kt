@@ -9,7 +9,11 @@ import com.boxpix.app.data.prefs.SettingsStore
 import com.boxpix.app.data.prefs.SortOrder
 import com.boxpix.app.data.prefs.UiPrefsStore
 import com.boxpix.app.data.storage.StorageEntry
+import com.boxpix.app.data.db.MediaDao
+import com.boxpix.app.data.db.MediaItemEntity
 import com.boxpix.app.data.db.TagWithCount
+import com.boxpix.app.data.net.ConnectionMode
+import com.boxpix.app.data.net.EndpointResolver
 import com.boxpix.app.data.storage.ProtectionRepository
 import com.boxpix.app.data.storage.StorageEnv
 import com.boxpix.app.data.storage.StorageProvider
@@ -47,6 +51,8 @@ class ExplorerViewModel @Inject constructor(
     private val tagRepository: TagRepository,
     private val sortSession: SortSession,
     private val searchContext: SearchContext,
+    private val mediaDao: MediaDao,
+    private val resolver: EndpointResolver,
 ) : ViewModel() {
 
     data class FolderRef(val pathB64: String, val displayPath: String, val name: String)
@@ -79,6 +85,9 @@ class ExplorerViewModel @Inject constructor(
         val move: MoveState = MoveState(),
         val protectedPaths: List<String> = emptyList(),
         val favoritePaths: List<String> = emptyList(),
+        /** S2: the box is unreachable, the grid serves the Room index. */
+        val offline: Boolean = false,
+        val connection: ConnectionMode? = null,
     ) {
         val current: FolderRef? get() = stack.lastOrNull() ?: root
         val depth: Int get() = stack.size
@@ -392,14 +401,93 @@ class ExplorerViewModel @Inject constructor(
                         loading = false,
                         initialLoad = false,
                         wakingDisk = false,
+                        offline = false,
+                        connection = resolver.current?.mode,
                     )
                 }
             }
-            is FbxResult.Err -> _state.update {
-                it.copy(loading = false, initialLoad = false, wakingDisk = false, error = listed.error)
+            is FbxResult.Err -> {
+                if (listed.error.isUnreachable() && serveFromCache(current, sort)) {
+                    resolver.invalidate() // next attempt re-probes fast instead of timing out
+                } else {
+                    _state.update {
+                        it.copy(loading = false, initialLoad = false, wakingDisk = false, error = listed.error)
+                    }
+                }
             }
         }
     }
+
+    /** S2 offline: the index is a reconstructible cache — good enough to browse. */
+    private suspend fun serveFromCache(current: FolderRef, sort: SortOrder): Boolean {
+        val providerId = if (env.useFakeProvider.first()) {
+            TrashRepository.PROVIDER_FAKE
+        } else {
+            TrashRepository.PROVIDER_FREEBOX
+        }
+        val all = mediaDao.all(providerId)
+        val here = all.filter { it.folderDisplayPath == current.displayPath }
+        val subtreePrefix = "${current.displayPath}/"
+        val subfolderNames = all.asSequence()
+            .filter { it.folderDisplayPath.startsWith(subtreePrefix) }
+            .map { it.folderDisplayPath.removePrefix(subtreePrefix).substringBefore('/') }
+            .distinct()
+            .sorted()
+            .toList()
+        if (here.isEmpty() && subfolderNames.isEmpty()) return false
+
+        val media = here.map { it.toStorageEntry() }.sortedWith(comparator(sort))
+        val albums = subfolderNames.map { name ->
+            val display = "${current.displayPath}/$name"
+            val children = all.filter {
+                it.folderDisplayPath == display || it.folderDisplayPath.startsWith("$display/")
+            }
+            AlbumUi(
+                entry = StorageEntry(
+                    pathB64 = PathCodec.encode(display),
+                    displayPath = display,
+                    name = name,
+                    isDirectory = true,
+                    sizeBytes = 0,
+                    modifiedEpochSeconds = 0,
+                    mimeType = null,
+                    hidden = false,
+                ),
+                mediaCount = children.size,
+                cover = children.firstOrNull { !it.isVideo }?.toStorageEntry(),
+            )
+        }
+        _state.update {
+            it.copy(
+                folders = albums.map { a -> a.entry },
+                media = media,
+                albums = albums,
+                sort = sort,
+                loading = false,
+                initialLoad = false,
+                wakingDisk = false,
+                error = null,
+                offline = true,
+                connection = null,
+            )
+        }
+        return true
+    }
+
+    private fun MediaItemEntity.toStorageEntry() = StorageEntry(
+        pathB64 = pathB64,
+        displayPath = displayPath,
+        name = name,
+        isDirectory = false,
+        sizeBytes = sizeBytes,
+        modifiedEpochSeconds = mtime,
+        mimeType = mimeType,
+        hidden = false,
+        durationSeconds = durationSeconds,
+    )
+
+    private fun FreeboxError.isUnreachable(): Boolean =
+        this is FreeboxError.Network || this is FreeboxError.BoxNotFound
 
     /** Counts and covers need one listing per subfolder; cheap on the fake, M3 indexes it. */
     private suspend fun loadAlbums(folders: List<StorageEntry>): List<AlbumUi> = coroutineScope {

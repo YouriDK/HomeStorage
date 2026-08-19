@@ -56,6 +56,7 @@ class OnboardingViewModel @Inject constructor(
         val hasStoredToken: Boolean = false,
         val busy: Boolean = false,
         val error: FreeboxError? = null,
+        val importFailed: Boolean = false,
     )
 
     private val _state = MutableStateFlow(UiState())
@@ -72,6 +73,31 @@ class OnboardingViewModel @Inject constructor(
     }
 
     fun toggleAdvanced() = _state.update { it.copy(advancedOpen = !it.advancedOpen) }
+
+    /** SPEC §3 import config: restores the token + endpoint from an encrypted backup. */
+    fun importConfig(bytes: ByteArray, passphrase: String) {
+        viewModelScope.launch {
+            val backup = com.boxpix.app.data.config.ConfigCrypto.decrypt(bytes, passphrase.toCharArray())
+            if (backup == null) {
+                _state.update { it.copy(importFailed = true) }
+                return@launch
+            }
+            withContext(Dispatchers.IO) { tokenStore.appToken = backup.appToken }
+            settings.saveImported(
+                apiDomain = backup.apiDomain,
+                httpsPort = backup.httpsPort,
+                apiBaseUrl = backup.apiBaseUrl,
+                apiVersion = backup.apiVersion,
+                manualHost = backup.manualHost,
+                boxName = backup.boxName,
+            )
+            _state.update {
+                it.copy(hasStoredToken = true, importFailed = false, host = backup.manualHost.orEmpty())
+            }
+        }
+    }
+
+    fun dismissImportFailed() = _state.update { it.copy(importFailed = false) }
 
     fun setHost(value: String) = _state.update { it.copy(host = value) }
 

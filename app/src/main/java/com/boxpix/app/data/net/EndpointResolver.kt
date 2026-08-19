@@ -38,6 +38,11 @@ class EndpointResolver @Inject constructor(
     var current: Endpoint? = null
         private set
 
+    /** Duration of the last successful discovery — the Settings card's "latency". */
+    @Volatile
+    var lastLatencyMs: Long? = null
+        private set
+
     private val mutex = Mutex()
 
     suspend fun resolve(forceProbe: Boolean = false): FbxResult<Endpoint> = mutex.withLock {
@@ -46,7 +51,10 @@ class EndpointResolver @Inject constructor(
         val snapshot = settings.current()
         val lanHost = snapshot.manualHost ?: ApiUrls.LAN_HOST
 
-        when (val discovery = api.apiVersion(lanHost)) {
+        val startedAt = System.nanoTime()
+        when (val discovery = api.apiVersion(lanHost).also {
+            if (it is FbxResult.Ok) lastLatencyMs = (System.nanoTime() - startedAt) / 1_000_000
+        }) {
             is FbxResult.Ok -> {
                 settings.saveDiscovery(discovery.value)
                 val dto = discovery.value

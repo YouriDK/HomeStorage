@@ -44,7 +44,7 @@ class TagRepositoryTest {
     )
     private val pid = TrashRepository.PROVIDER_FAKE
 
-    private fun kotlinx.coroutines.test.TestScope.repo() = TagRepository(
+    private fun kotlinx.coroutines.test.TestScope.repo(xmpEnabled: Boolean = true) = TagRepository(
         tagDao = tagDao,
         queueDao = queueDao,
         env = env,
@@ -52,6 +52,7 @@ class TagRepositoryTest {
         clock = clock,
         journal = { journal },
         scope = this,
+        xmpPolicy = { xmpEnabled },
     )
 
     private fun media(name: String, mime: String = "image/jpeg") = MediaRef(
@@ -96,6 +97,18 @@ class TagRepositoryTest {
             listOf("plage"),
             repo.keywordsForMedia(pid, media("a.jpg").pathB64),
         )
+    }
+
+    @Test
+    fun `xmp switch off means no xmp job is ever enqueued`() = runTest {
+        val repo = repo(xmpEnabled = false)
+        val tag = repo.createTag("plage")!!
+        repo.addTag(media("a.jpg"), tag.id)
+        advanceUntilIdle()
+
+        assertTrue(queueDao.allJobs().none { it.type == WorkQueueEntity.TYPE_XMP })
+        // Tags themselves still work: Room + journal untouched by the switch.
+        assertEquals(listOf("plage"), repo.keywordsForMedia(pid, media("a.jpg").pathB64))
     }
 
     @Test
@@ -168,6 +181,43 @@ class TagRepositoryTest {
         val after = json.decodeFromString(TagsSnapshot.serializer(), metaFile(TagsJournal.TAGS_FILE)!!)
         assertEquals("test-device", after.device)
         assertEquals(listOf("plage"), after.tags.map { it.name })
+    }
+
+    @Test
+    fun `merge relinks and deletes, rename refuses collisions`() = runTest {
+        val repo = repo()
+        val travel = repo.createTag("travel")!!
+        val trips = repo.createTag("trips")!!
+        repo.addTag(media("a.jpg"), travel.id)
+        repo.addTag(media("b.jpg"), travel.id)
+        repo.addTag(media("b.jpg"), trips.id) // overlap: merge must dedupe
+        advanceUntilIdle()
+
+        assertTrue(!repo.renameTag(travel.id, "trips")) // collision → merge instead
+
+        val moved = repo.mergeTags(travel.id, trips.id)
+        advanceUntilIdle()
+        assertEquals(2, moved)
+        assertNull(tagDao.byName(pid, "travel"))
+        assertEquals(listOf("trips"), repo.keywordsForMedia(pid, media("a.jpg").pathB64))
+        assertEquals(listOf("trips"), repo.keywordsForMedia(pid, media("b.jpg").pathB64))
+
+        assertTrue(repo.renameTag(trips.id, "voyages"))
+        advanceUntilIdle()
+        assertEquals(listOf("voyages"), repo.keywordsForMedia(pid, media("a.jpg").pathB64))
+    }
+
+    @Test
+    fun `deleteTag unlinks everything`() = runTest {
+        val repo = repo()
+        val tag = repo.createTag("plage")!!
+        repo.addTag(media("a.jpg"), tag.id)
+        advanceUntilIdle()
+
+        repo.deleteTag(tag.id)
+        advanceUntilIdle()
+        assertNull(tagDao.byName(pid, "plage"))
+        assertTrue(repo.keywordsForMedia(pid, media("a.jpg").pathB64).isEmpty())
     }
 
     @Test

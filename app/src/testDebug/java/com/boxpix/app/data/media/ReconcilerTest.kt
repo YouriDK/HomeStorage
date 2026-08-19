@@ -43,6 +43,8 @@ class ReconcilerTest {
     private val reconciler = Reconciler(
         provider, mediaDao, queueDao, thumbnails, env,
         rootLocator = { PathCodec.encode("/Photos") },
+        syncStatus = SyncStatus(),
+        clock = java.time.Clock.systemUTC(),
     )
 
     private fun b64(path: String) = PathCodec.encode(path)

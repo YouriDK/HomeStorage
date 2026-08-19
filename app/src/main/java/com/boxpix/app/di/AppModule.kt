@@ -6,6 +6,8 @@ import com.boxpix.app.data.net.AndroidNetworkStatus
 import com.boxpix.app.data.net.NetworkStatus
 import com.boxpix.app.data.prefs.DeviceIdentity
 import com.boxpix.app.data.prefs.UiPrefsStore
+import com.boxpix.app.data.prefs.XmpPolicy
+import kotlinx.coroutines.flow.first
 import com.boxpix.app.data.storage.DefaultRootLocator
 import com.boxpix.app.data.storage.RootLocator
 import dagger.Module
@@ -46,4 +48,9 @@ object AppModule {
     @Provides
     @Singleton
     fun deviceIdentity(prefs: UiPrefsStore): DeviceIdentity = DeviceIdentity { prefs.deviceId() }
+
+    @Provides
+    @Singleton
+    fun xmpPolicy(prefs: UiPrefsStore): XmpPolicy =
+        XmpPolicy { prefs.xmpWriteEnabled.first() }
 }

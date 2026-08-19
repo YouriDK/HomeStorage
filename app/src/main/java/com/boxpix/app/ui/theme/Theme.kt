@@ -69,12 +69,33 @@ val LocalBoxpixColors = staticCompositionLocalOf { DarkColors }
 val boxpixColors: BoxpixColors
     @Composable get() = LocalBoxpixColors.current
 
+/** Accent presets (Settings › Appearance); slate teal is the design default. */
+object AccentPresets {
+    data class Accent(val key: String, val dark: Color, val light: Color)
+
+    val all = listOf(
+        Accent("teal", Color(0xFF6FC0B3), Color(0xFF2F7F74)),
+        Accent("amber", Color(0xFFE6A94E), Color(0xFF9A6B1A)),
+        Accent("lavender", Color(0xFFA9A4E0), Color(0xFF5D55B8)),
+        Accent("coral", Color(0xFFE08D8D), Color(0xFFB04A4A)),
+    )
+
+    fun byKey(key: String): Accent = all.firstOrNull { it.key == key } ?: all.first()
+}
+
 @Composable
 fun BoxpixTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
+    accentKey: String = AccentPresets.all.first().key,
     content: @Composable () -> Unit,
 ) {
-    val colors = if (darkTheme) DarkColors else LightColors
+    val preset = AccentPresets.byKey(accentKey)
+    val accent = if (darkTheme) preset.dark else preset.light
+    val base = if (darkTheme) DarkColors else LightColors
+    val colors = base.copy(
+        accent = accent,
+        accentSoft = accent.copy(alpha = if (darkTheme) 0.16f else 0.12f),
+    )
     val scheme = if (darkTheme) {
         darkColorScheme(
             primary = colors.accent,

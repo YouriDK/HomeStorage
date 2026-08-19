@@ -32,6 +32,18 @@ interface TagDao {
     @Query("UPDATE tags SET pinned = :pinned WHERE id = :id")
     suspend fun setPinned(id: Long, pinned: Boolean)
 
+    @Query("UPDATE tags SET name = :name WHERE id = :id")
+    suspend fun rename(id: Long, name: String)
+
+    @Query("DELETE FROM tags WHERE id = :id")
+    suspend fun deleteTag(id: Long)
+
+    @Query("DELETE FROM media_tags WHERE tagId = :tagId")
+    suspend fun deleteLinksFor(tagId: Long)
+
+    @Query("SELECT * FROM media_tags WHERE tagId = :tagId")
+    suspend fun linksFor(tagId: Long): List<MediaTagEntity>
+
     // Media ↔ tag links
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)

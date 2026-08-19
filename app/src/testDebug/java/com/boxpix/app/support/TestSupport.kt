@@ -142,6 +142,21 @@ class InMemoryTagDao : TagDao {
         tags.value[id]?.let { tags.value = tags.value + (id to it.copy(pinned = pinned)) }
     }
 
+    override suspend fun rename(id: Long, name: String) {
+        tags.value[id]?.let { tags.value = tags.value + (id to it.copy(name = name)) }
+    }
+
+    override suspend fun deleteTag(id: Long) {
+        tags.value = tags.value - id
+    }
+
+    override suspend fun deleteLinksFor(tagId: Long) {
+        links.value = links.value.filterNot { it.tagId == tagId }
+    }
+
+    override suspend fun linksFor(tagId: Long) =
+        links.value.filter { it.tagId == tagId }
+
     override suspend fun link(link: MediaTagEntity) {
         links.value = links.value.filterNot {
             it.providerId == link.providerId && it.pathB64 == link.pathB64 && it.tagId == link.tagId

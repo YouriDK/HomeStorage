@@ -60,8 +60,10 @@
         <item quantity="other">%1$d items</item>
     </plurals>
     <string name="badge_fake">Fake</string>
-    <string name="tab_explorer">Explorer</string>
-    <string name="tab_gallery">Gallery</string>
+    <string name="badge_lan">LAN</string>
+    <string name="badge_remote">Remote</string>
+    <string name="badge_offline">Offline</string>
+    <string name="offline_banner">Browsing the cache. Moving and deleting resume when the box is reachable.</string>
 
     <!-- Timeline -->
     <string name="timeline_empty">Nothing indexed yet — browse some folders or let the sync pass run.</string>
@@ -82,6 +84,10 @@
     <string name="viewer_info_close">Close</string>
     <string name="viewer_video_fake_note">Video playback streams from the real Freebox — switch off fake data to play.</string>
     <string name="viewer_share_title">Share</string>
+
+    <!-- App lock -->
+    <string name="lock_title">Boxpix is locked</string>
+    <string name="lock_unlock">Unlock</string>
 
     <!-- Tags -->
     <string name="tag_picker_title">Tags</string>
@@ -158,6 +164,43 @@
     <string name="settings_reset_pairing">Reset pairing</string>
     <string name="settings_reset_pairing_hint">Forget the app token and start over</string>
     <string name="settings_group_debug">Debug</string>
+    <string name="settings_theme">Theme</string>
+    <string name="theme_system">System</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
+    <string name="settings_accent">Accent colour</string>
+    <string name="settings_group_sync">Synchronisation</string>
+    <string name="settings_thumb_queue">Thumbnail queue</string>
+    <string name="settings_xmp_queue">XMP queue</string>
+    <plurals name="settings_pending">
+        <item quantity="one">%1$d pending</item>
+        <item quantity="other">%1$d pending</item>
+    </plurals>
+    <string name="settings_xmp_switch">XMP write-through (JPEG)</string>
+    <string name="settings_xmp_switch_hint">Embed tags into the files. Off: tags live in the app and the journal only.</string>
+    <string name="settings_resync">Resync now</string>
+    <string name="settings_last_pass">Last pass %1$s</string>
+    <string name="settings_never">never</string>
+    <string name="settings_manage_tags">Manage tags</string>
+    <string name="settings_group_security">Security</string>
+    <string name="settings_app_lock">App lock</string>
+    <string name="settings_app_lock_hint">PIN or biometrics when opening</string>
+    <string name="settings_export">Export config</string>
+    <string name="settings_export_hint">Encrypted file with the pairing token</string>
+    <string name="export_passphrase_title">Choose a passphrase</string>
+    <string name="import_passphrase_title">File passphrase</string>
+    <string name="dialog_export">Export</string>
+    <string name="dialog_import">Import</string>
+    <string name="onboarding_import_config">Import config</string>
+    <string name="import_failed">Import failed — wrong passphrase or corrupted file.</string>
+    <string name="manage_tags_rename">Rename</string>
+    <string name="manage_tags_merge">Merge into…</string>
+    <string name="manage_tags_delete">Delete</string>
+    <plurals name="manage_tags_impact">
+        <item quantity="one">%1$d photo affected</item>
+        <item quantity="other">%1$d photos affected</item>
+    </plurals>
+    <string name="manage_tags_rename_taken">That name is already taken — merge instead.</string>
     <string name="settings_use_fake">Use fake data</string>
     <string name="settings_use_fake_hint">In-memory library, no Freebox needed</string>
     <string name="settings_sleep_disk">Simulate disk sleep</string>
