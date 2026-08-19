@@ -139,7 +139,6 @@ fun ViewerScreen(
                 isCurrent = page == pagerState.currentPage,
                 streamingUrl = viewModel.streamingUrl(item),
                 headers = state.videoAccess?.headers.orEmpty(),
-                chromeVisible = state.chromeVisible,
                 onTap = viewModel::toggleChrome,
             )
         }
@@ -164,6 +163,22 @@ fun ViewerScreen(
                     overflowOpen = false
                     clipboard.setText(AnnotatedString(current.displayPath))
                 },
+                onMove = {
+                    overflowOpen = false
+                    viewModel.openMoveSheet()
+                },
+                onTrash = {
+                    overflowOpen = false
+                    showTrashConfirm = true
+                },
+                onShare = {
+                    overflowOpen = false
+                    viewModel.share(current)
+                },
+                onInfo = {
+                    overflowOpen = false
+                    viewModel.setInfoOpen(true)
+                },
             )
         }
 
@@ -181,8 +196,10 @@ fun ViewerScreen(
             )
         }
 
+        // On video pages the stock player controller owns the bottom edge; the
+        // file actions move into the top-right overflow menu instead.
         AnimatedVisibility(
-            visible = state.chromeVisible,
+            visible = state.chromeVisible && !current.isVideo,
             enter = fadeIn(),
             exit = fadeOut(),
             modifier = Modifier
@@ -244,7 +261,6 @@ private fun MediaPage(
     isCurrent: Boolean,
     streamingUrl: String?,
     headers: Map<String, String>,
-    chromeVisible: Boolean,
     onTap: () -> Unit,
 ) {
     Box(
@@ -276,12 +292,7 @@ private fun MediaPage(
                 },
             )
         } else if (isCurrent && streamingUrl != null) {
-            VideoPlayerWithControls(
-                url = streamingUrl,
-                headers = headers,
-                controlsVisible = chromeVisible,
-                modifier = Modifier.fillMaxSize(),
-            )
+            VideoPlayer(url = streamingUrl, headers = headers, modifier = Modifier.fillMaxSize())
         } else {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Icon(
@@ -303,19 +314,9 @@ private fun MediaPage(
     }
 }
 
-/**
- * Design-conformant video controls: centred play/pause and a seek row sitting
- * ABOVE the floating action bar — ExoPlayer's stock controller would be hidden
- * behind it.
- */
 @OptIn(UnstableApi::class)
 @Composable
-private fun VideoPlayerWithControls(
-    url: String,
-    headers: Map<String, String>,
-    controlsVisible: Boolean,
-    modifier: Modifier = Modifier,
-) {
+private fun VideoPlayer(url: String, headers: Map<String, String>, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val player = remember(url) {
         val dataSourceFactory = DefaultHttpDataSource.Factory().setDefaultRequestProperties(headers)
@@ -330,84 +331,16 @@ private fun VideoPlayerWithControls(
     androidx.compose.runtime.DisposableEffect(player) {
         onDispose { player.release() }
     }
-
-    var positionMs by remember { mutableLongStateOf(0L) }
-    var durationMs by remember { mutableLongStateOf(0L) }
-    var playing by remember { mutableStateOf(false) }
-    LaunchedEffect(player) {
-        while (true) {
-            positionMs = player.currentPosition.coerceAtLeast(0)
-            durationMs = player.duration.coerceAtLeast(0)
-            playing = player.isPlaying
-            kotlinx.coroutines.delay(300)
-        }
-    }
-
-    Box(modifier = modifier) {
-        AndroidView(
-            factory = { viewContext ->
-                PlayerView(viewContext).apply {
-                    this.player = player
-                    useController = false
-                    setBackgroundColor(android.graphics.Color.BLACK)
-                }
-            },
-            modifier = Modifier.fillMaxSize(),
-        )
-
-        if (!playing || controlsVisible) {
-            IconButton(
-                onClick = { if (playing) player.pause() else player.play() },
-                modifier = Modifier
-                    .align(Alignment.Center)
-                    .size(66.dp)
-                    .background(Color.Black.copy(alpha = 0.45f), androidx.compose.foundation.shape.CircleShape)
-                    .border(1.dp, Color.White.copy(alpha = 0.2f), androidx.compose.foundation.shape.CircleShape),
-            ) {
-                Icon(
-                    if (playing) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                    contentDescription = null,
-                    tint = Color.White,
-                    modifier = Modifier.size(34.dp),
-                )
+    AndroidView(
+        factory = { viewContext ->
+            PlayerView(viewContext).apply {
+                this.player = player
+                useController = true
+                setBackgroundColor(android.graphics.Color.BLACK)
             }
-        }
-
-        if (controlsVisible && durationMs > 0) {
-            Row(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .navigationBarsPadding()
-                    .padding(start = 18.dp, end = 18.dp, bottom = 104.dp)
-                    .fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = formatDuration(positionMs / 1000),
-                    fontSize = 11.sp,
-                    color = Color.White.copy(alpha = 0.8f),
-                )
-                Slider(
-                    value = positionMs.toFloat().coerceIn(0f, durationMs.toFloat()),
-                    onValueChange = { player.seekTo(it.toLong()) },
-                    valueRange = 0f..durationMs.toFloat(),
-                    colors = SliderDefaults.colors(
-                        thumbColor = Color(0xFF6FC0B3),
-                        activeTrackColor = Color(0xFF6FC0B3),
-                        inactiveTrackColor = Color.White.copy(alpha = 0.24f),
-                    ),
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(horizontal = 10.dp),
-                )
-                Text(
-                    text = formatDuration(durationMs / 1000),
-                    fontSize = 11.sp,
-                    color = Color.White.copy(alpha = 0.8f),
-                )
-            }
-        }
-    }
+        },
+        modifier = modifier,
+    )
 }
 
 @Composable
@@ -419,6 +352,10 @@ private fun ViewerTopBar(
     onDismissOverflow: () -> Unit,
     onRename: () -> Unit,
     onCopyPath: () -> Unit,
+    onMove: () -> Unit,
+    onTrash: () -> Unit,
+    onShare: () -> Unit,
+    onInfo: () -> Unit,
 ) {
     Row(
         modifier = Modifier
@@ -473,6 +410,26 @@ private fun ViewerTopBar(
                     text = { Text(stringResource(R.string.viewer_menu_copy_path)) },
                     onClick = onCopyPath,
                 )
+                // Videos have no bottom action bar (the player controller owns
+                // that edge): file actions live here instead.
+                if (item.isVideo) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.viewer_action_move)) },
+                        onClick = onMove,
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.viewer_action_trash)) },
+                        onClick = onTrash,
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.viewer_action_share)) },
+                        onClick = onShare,
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.viewer_action_info)) },
+                        onClick = onInfo,
+                    )
+                }
             }
         }
     }
