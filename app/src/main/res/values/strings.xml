@@ -20,9 +20,7 @@
     <!-- Onboarding — disk choice -->
     <string name="disk_title">Choose a disk</string>
     <string name="disk_subtitle">Boxpix will only browse the disk you pick.</string>
-    <string name="disk_root_folder">Root folder</string>
     <string name="disk_start_scanning">Start scanning</string>
-    <string name="disk_up_one_level">Up one level</string>
 
     <!-- Errors -->
     <string name="error_box_not_found">No Freebox found on this network. Check you are on the same Wi-Fi as the box.</string>

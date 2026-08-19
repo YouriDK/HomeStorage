@@ -1,6 +1,5 @@
 package com.boxpix.app.ui.onboarding
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -68,8 +67,6 @@ fun OnboardingScreen(viewModel: OnboardingViewModel = hiltViewModel()) {
         is Step.ChooseDisk -> DiskContent(
             step = step,
             onSelectDisk = viewModel::selectDisk,
-            onOpenFolder = viewModel::openFolder,
-            onUpOneLevel = viewModel::upOneLevel,
             onConfirm = viewModel::confirmRoot,
         )
     }
@@ -319,16 +316,9 @@ private fun PairingContent(onCancel: () -> Unit) {
 private fun DiskContent(
     step: Step.ChooseDisk,
     onSelectDisk: (StorageEntry) -> Unit,
-    onOpenFolder: (StorageEntry) -> Unit,
-    onUpOneLevel: () -> Unit,
     onConfirm: () -> Unit,
 ) {
     val colors = boxpixColors
-
-    // System back walks the browse stack up instead of leaving the app.
-    BackHandler(enabled = step.folderStack.isNotEmpty()) {
-        onUpOneLevel()
-    }
 
     Column(
         modifier = Modifier
@@ -362,44 +352,13 @@ private fun DiskContent(
                 if (index < step.disks.lastIndex) HairlineDivider()
             }
 
-            if (step.selectedDisk != null) {
-                item(key = "root-header") {
-                    RootFolderHeader(
-                        step = step,
-                        onUpOneLevel = onUpOneLevel,
-                    )
-                }
-                if (step.listing) {
-                    item(key = "listing") {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 20.dp),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(22.dp),
-                                color = colors.accent,
-                                trackColor = colors.hairline,
-                                strokeWidth = 1.5.dp,
-                            )
-                        }
-                    }
-                } else {
-                    items(step.subFolders.size, key = { step.subFolders[it].pathB64 }) { index ->
-                        val folder = step.subFolders[index]
-                        FolderRow(entry = folder, onClick = { onOpenFolder(folder) })
-                        if (index < step.subFolders.lastIndex) HairlineDivider()
-                    }
-                }
-            }
         }
 
         Spacer(Modifier.height(12.dp))
         AccentOutlinedButton(
             label = stringResource(R.string.disk_start_scanning),
             onClick = onConfirm,
-            enabled = step.rootCandidate != null && !step.listing,
+            enabled = step.selectedDisk != null,
         )
         Spacer(Modifier.height(24.dp))
     }
@@ -440,83 +399,6 @@ private fun DiskRow(entry: StorageEntry, selected: Boolean, onClick: () -> Unit)
         } else {
             Icon(Lucide.ChevronRight, contentDescription = null, tint = colors.faint, modifier = Modifier.size(18.dp))
         }
-    }
-}
-
-@Composable
-private fun RootFolderHeader(step: Step.ChooseDisk, onUpOneLevel: () -> Unit) {
-    val colors = boxpixColors
-    Column {
-        Spacer(Modifier.height(20.dp))
-        Text(
-            text = stringResource(R.string.disk_root_folder).uppercase(),
-            style = MaterialTheme.typography.labelSmall,
-            color = colors.faint,
-        )
-        Spacer(Modifier.height(8.dp))
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(52.dp)
-                .background(colors.elevated, RoundedCornerShape(8.dp))
-                .padding(horizontal = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = step.rootCandidate?.displayPath.orEmpty(),
-                style = MaterialTheme.typography.bodySmall,
-                color = colors.text,
-                fontFamily = FontFamily.Monospace,
-                maxLines = 1,
-                modifier = Modifier.weight(1f),
-            )
-        }
-        if (step.folderStack.isNotEmpty()) {
-            TextButton(onClick = onUpOneLevel) {
-                Icon(
-                    Lucide.ArrowLeft,
-                    contentDescription = null,
-                    tint = colors.accent,
-                    modifier = Modifier.size(16.dp),
-                )
-                Spacer(Modifier.size(6.dp))
-                Text(
-                    text = stringResource(R.string.disk_up_one_level),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = colors.accent,
-                )
-            }
-        }
-        Spacer(Modifier.height(4.dp))
-    }
-}
-
-@Composable
-private fun FolderRow(entry: StorageEntry, onClick: () -> Unit) {
-    val colors = boxpixColors
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(48.dp)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(
-            Lucide.Folder,
-            contentDescription = null,
-            tint = colors.dim,
-            modifier = Modifier.size(20.dp),
-        )
-        Spacer(Modifier.size(14.dp))
-        Text(
-            entry.name,
-            style = MaterialTheme.typography.bodyLarge,
-            color = colors.text,
-            modifier = Modifier.weight(1f),
-            maxLines = 1,
-        )
-        Icon(Lucide.ChevronRight, contentDescription = null, tint = colors.faint, modifier = Modifier.size(18.dp))
     }
 }
 

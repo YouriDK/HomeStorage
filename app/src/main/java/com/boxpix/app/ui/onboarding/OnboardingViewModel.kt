@@ -33,20 +33,11 @@ class OnboardingViewModel @Inject constructor(
         data object Start : Step
         data object Pairing : Step
 
-        /**
-         * Disk selection plus a light folder browser to pick the root below the disk.
-         * [folderStack] is the descent from the disk; the root candidate is its last
-         * element, or the disk itself when empty.
-         */
+        /** Disk selection — the chosen disk IS the root (owner's decision, V1 feedback). */
         data class ChooseDisk(
             val disks: List<StorageEntry>,
             val selectedDisk: StorageEntry? = null,
-            val folderStack: List<StorageEntry> = emptyList(),
-            val subFolders: List<StorageEntry> = emptyList(),
-            val listing: Boolean = false,
-        ) : Step {
-            val rootCandidate: StorageEntry? get() = folderStack.lastOrNull() ?: selectedDisk
-        }
+        ) : Step
     }
 
     data class UiState(
@@ -116,30 +107,15 @@ class OnboardingViewModel @Inject constructor(
     }
 
     fun selectDisk(disk: StorageEntry) {
-        updateChooseDisk { it.copy(selectedDisk = disk, folderStack = emptyList(), subFolders = emptyList()) }
-        browse(disk)
-    }
-
-    fun openFolder(folder: StorageEntry) {
-        updateChooseDisk { it.copy(folderStack = it.folderStack + folder) }
-        browse(folder)
-    }
-
-    fun upOneLevel() {
-        val step = _state.value.step as? Step.ChooseDisk ?: return
-        val stack = step.folderStack.dropLast(1)
-        val target = stack.lastOrNull() ?: step.selectedDisk ?: return
-        updateChooseDisk { it.copy(folderStack = stack) }
-        browse(target)
+        updateChooseDisk { it.copy(selectedDisk = disk) }
     }
 
     fun confirmRoot() {
         val step = _state.value.step as? Step.ChooseDisk ?: return
         val disk = step.selectedDisk ?: return
-        val root = step.rootCandidate ?: return
         viewModelScope.launch {
-            settings.saveRoot(disk.name, root.pathB64, root.displayPath)
-            // RootViewModel observes the settings flow and switches to the debug listing.
+            settings.saveRoot(disk.name, disk.pathB64, disk.displayPath)
+            // RootViewModel observes the settings flow and switches to the main UI.
         }
     }
 
@@ -174,21 +150,6 @@ class OnboardingViewModel @Inject constructor(
 
             is FbxResult.Err -> _state.update {
                 it.copy(busy = false, step = Step.Start, error = outcome.error)
-            }
-        }
-    }
-
-    private fun browse(folder: StorageEntry) {
-        viewModelScope.launch {
-            updateChooseDisk { it.copy(listing = true) }
-            when (val outcome = provider.list(folder.pathB64, onlyFolders = true)) {
-                is FbxResult.Ok ->
-                    updateChooseDisk { it.copy(subFolders = outcome.value, listing = false) }
-
-                is FbxResult.Err -> {
-                    updateChooseDisk { it.copy(listing = false) }
-                    _state.update { it.copy(error = outcome.error) }
-                }
             }
         }
     }
