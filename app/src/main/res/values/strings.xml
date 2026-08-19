@@ -51,6 +51,10 @@
     <string name="explorer_action_trash">Trash</string>
     <string name="explorer_action_rename">Rename</string>
     <string name="explorer_action_select_all">Select all</string>
+    <string name="explorer_action_protect">Protect folder</string>
+    <string name="explorer_action_unprotect">Remove protection</string>
+    <string name="explorer_protected">Protected</string>
+    <string name="error_protected">This folder is protected in Boxpix — remove its protection first.</string>
     <plurals name="explorer_items_count">
         <item quantity="one">%1$d item</item>
         <item quantity="other">%1$d items</item>
@@ -80,6 +84,12 @@
     <string name="viewer_share_title">Share</string>
 
     <!-- Dialogs -->
+    <string name="dialog_trash_title">Move to trash?</string>
+    <plurals name="dialog_trash_message">
+        <item quantity="one">%1$d item will move to the trash. It stays recoverable for 30 days.</item>
+        <item quantity="other">%1$d items will move to the trash. They stay recoverable for 30 days.</item>
+    </plurals>
+    <string name="dialog_trash_confirm">Trash</string>
     <string name="dialog_new_folder_title">New folder</string>
     <string name="dialog_rename_title">Rename</string>
     <string name="dialog_name_label">Name</string>

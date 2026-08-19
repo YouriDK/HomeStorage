@@ -12,7 +12,6 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.boxpix.app.ui.explorer.ExplorerScreen
-import com.boxpix.app.ui.gallery.TimelineScreen
 import com.boxpix.app.ui.onboarding.OnboardingScreen
 import com.boxpix.app.ui.settings.SettingsScreen
 import com.boxpix.app.ui.theme.boxpixColors
@@ -41,20 +40,6 @@ private fun MainNavHost() {
     NavHost(navController = nav, startDestination = "explorer") {
         composable("explorer") {
             ExplorerScreen(
-                onOpenSettings = { nav.navigate("settings") },
-                onOpenGallery = {
-                    nav.navigate("gallery") {
-                        popUpTo("explorer") { saveState = true }
-                        launchSingleTop = true
-                        restoreState = true
-                    }
-                },
-                onOpenViewer = { nav.navigate("viewer") },
-            )
-        }
-        composable("gallery") {
-            TimelineScreen(
-                onOpenExplorer = { nav.popBackStack("explorer", inclusive = false) },
                 onOpenSettings = { nav.navigate("settings") },
                 onOpenViewer = { nav.navigate("viewer") },
             )

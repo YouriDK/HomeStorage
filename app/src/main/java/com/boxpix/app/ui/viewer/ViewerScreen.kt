@@ -79,6 +79,7 @@ import coil.compose.SubcomposeAsyncImage
 import com.boxpix.app.R
 import com.boxpix.app.ui.common.HdRequest
 import com.boxpix.app.ui.common.ThumbRequest
+import com.boxpix.app.ui.common.TrashConfirmDialog
 import com.boxpix.app.ui.common.formatBytes
 import com.boxpix.app.ui.common.formatDate
 import com.boxpix.app.ui.common.message
@@ -106,6 +107,7 @@ fun ViewerScreen(
     val current = state.items[pagerState.currentPage.coerceIn(0, state.items.lastIndex)]
 
     var showRenameDialog by remember { mutableStateOf(false) }
+    var showTrashConfirm by remember { mutableStateOf(false) }
     var overflowOpen by remember { mutableStateOf(false) }
 
     LaunchedEffect(shareUri) {
@@ -183,11 +185,22 @@ fun ViewerScreen(
         ) {
             ViewerActionBar(
                 onMove = viewModel::openMoveSheet,
-                onTrash = { viewModel.trash(current) },
+                onTrash = { showTrashConfirm = true },
                 onShare = { viewModel.share(current) },
                 onInfo = { viewModel.setInfoOpen(true) },
             )
         }
+    }
+
+    if (showTrashConfirm) {
+        TrashConfirmDialog(
+            count = 1,
+            onConfirm = {
+                showTrashConfirm = false
+                viewModel.trash(current)
+            },
+            onDismiss = { showTrashConfirm = false },
+        )
     }
 
     if (showRenameDialog) {

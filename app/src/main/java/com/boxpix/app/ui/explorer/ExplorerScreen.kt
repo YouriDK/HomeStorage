@@ -38,6 +38,9 @@ import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.Folder
+import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.LockOpen
 import androidx.compose.material.icons.outlined.SelectAll
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.DropdownMenu
@@ -75,11 +78,10 @@ import com.boxpix.app.data.prefs.SortOrder
 import com.boxpix.app.data.storage.StorageEntry
 import com.boxpix.app.ui.common.EmptyFolderView
 import com.boxpix.app.ui.common.ErrorView
-import com.boxpix.app.ui.common.FloatingTabBar
-import com.boxpix.app.ui.common.MainTab
 import com.boxpix.app.ui.common.GridSkeleton
 import com.boxpix.app.ui.common.PlaceholderTones
 import com.boxpix.app.ui.common.ThumbRequest
+import com.boxpix.app.ui.common.TrashConfirmDialog
 import com.boxpix.app.ui.common.WakingDiskView
 import com.boxpix.app.ui.common.formatDuration
 import com.boxpix.app.ui.common.message
@@ -89,7 +91,6 @@ import com.boxpix.app.ui.theme.boxpixColors
 @Composable
 fun ExplorerScreen(
     onOpenSettings: () -> Unit,
-    onOpenGallery: () -> Unit,
     onOpenViewer: () -> Unit,
     viewModel: ExplorerViewModel = hiltViewModel(),
 ) {
@@ -111,6 +112,10 @@ fun ExplorerScreen(
 
     var showNewFolderDialog by remember { mutableStateOf(false) }
     var showRenameDialog by remember { mutableStateOf(false) }
+    var showTrashConfirm by remember { mutableStateOf(false) }
+
+    val singleFolder = state.selection.singleOrNull()
+        ?.let { selected -> state.folders.firstOrNull { it.pathB64 == selected } }
 
     Box(
         modifier = Modifier
@@ -123,11 +128,14 @@ fun ExplorerScreen(
                 SelectionBar(
                     count = state.selection.size,
                     canRename = state.selection.size == 1,
+                    canProtect = singleFolder != null,
+                    isProtected = singleFolder?.displayPath in state.protectedPaths,
                     onClose = viewModel::clearSelection,
                     onRename = { showRenameDialog = true },
                     onMove = viewModel::openMoveSheet,
-                    onTrash = viewModel::trashSelected,
+                    onTrash = { showTrashConfirm = true },
                     onSelectAll = viewModel::selectAll,
+                    onToggleProtect = viewModel::toggleProtection,
                 )
             } else {
                 ExplorerTopBar(
@@ -149,28 +157,27 @@ fun ExplorerScreen(
             when {
                 state.loading && state.wakingDisk -> WakingDiskView()
 
-                state.loading && state.initialLoad ->
-                    GridSkeleton(columns = if (state.depth == 0) state.albumColumns else state.photoColumns)
+                state.loading && state.initialLoad -> GridSkeleton(columns = state.photoColumns)
 
                 state.error != null && state.folders.isEmpty() && state.media.isEmpty() ->
                     ErrorView(message = state.error?.message().orEmpty(), onRetry = viewModel::reload)
 
-                state.depth == 0 && state.albums.isNotEmpty() ->
-                    AlbumGrid(state = state, viewModel = viewModel)
-
                 state.folders.isEmpty() && state.media.isEmpty() -> EmptyFolderView()
 
-                else -> FolderContent(state = state, viewModel = viewModel, onOpenViewer = onOpenViewer)
+                else -> ContentGrid(state = state, viewModel = viewModel, onOpenViewer = onOpenViewer)
             }
         }
+    }
 
-        if (!state.selectionMode) {
-            FloatingTabBar(
-                active = MainTab.EXPLORER,
-                onSelect = { tab -> if (tab == MainTab.GALLERY) onOpenGallery() },
-                modifier = Modifier.align(Alignment.BottomCenter),
-            )
-        }
+    if (showTrashConfirm) {
+        TrashConfirmDialog(
+            count = state.selection.size,
+            onConfirm = {
+                showTrashConfirm = false
+                viewModel.trashSelected()
+            },
+            onDismiss = { showTrashConfirm = false },
+        )
     }
 
     if (showNewFolderDialog) {
@@ -366,11 +373,14 @@ private fun sortLabel(order: SortOrder): String = stringResource(
 private fun SelectionBar(
     count: Int,
     canRename: Boolean,
+    canProtect: Boolean,
+    isProtected: Boolean,
     onClose: () -> Unit,
     onRename: () -> Unit,
     onMove: () -> Unit,
     onTrash: () -> Unit,
     onSelectAll: () -> Unit,
+    onToggleProtect: () -> Unit,
 ) {
     val colors = boxpixColors
     Row(
@@ -390,6 +400,18 @@ private fun SelectionBar(
             color = colors.text,
         )
         Spacer(Modifier.weight(1f))
+        if (canProtect) {
+            IconButton(onClick = onToggleProtect) {
+                Icon(
+                    if (isProtected) Icons.Outlined.LockOpen else Icons.Outlined.Lock,
+                    contentDescription = stringResource(
+                        if (isProtected) R.string.explorer_action_unprotect else R.string.explorer_action_protect,
+                    ),
+                    tint = if (isProtected) colors.accent else colors.dim,
+                    modifier = Modifier.size(22.dp),
+                )
+            }
+        }
         if (canRename) {
             IconButton(onClick = onRename) {
                 Icon(
@@ -450,26 +472,37 @@ private fun ErrorBanner(message: String, onDismiss: () -> Unit) {
     }
 }
 
+/** One grid for everything: folder tiles first (like files, per feedback), then medias. */
 @Composable
-private fun AlbumGrid(
+private fun ContentGrid(
     state: ExplorerViewModel.UiState,
     viewModel: ExplorerViewModel,
+    onOpenViewer: () -> Unit,
 ) {
-    val gap = if (state.albumColumns >= 3) 8.dp else 14.dp
     LazyVerticalGrid(
-        columns = GridCells.Fixed(state.albumColumns),
+        columns = GridCells.Fixed(state.photoColumns),
         modifier = Modifier
             .fillMaxSize()
             .pinchToAdjustColumns(viewModel::adjustColumns),
-        contentPadding = PaddingValues(start = gap, end = gap, top = 2.dp, bottom = 96.dp),
-        horizontalArrangement = Arrangement.spacedBy(gap),
-        verticalArrangement = Arrangement.spacedBy(gap),
+        contentPadding = PaddingValues(bottom = 24.dp),
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
-        items(state.albums.size, key = { state.albums[it].entry.pathB64 }) { index ->
-            AlbumCell(
+        items(state.albums.size, key = { "folder:" + state.albums[it].entry.pathB64 }) { index ->
+            FolderTile(
                 album = state.albums[index],
                 selected = state.albums[index].entry.pathB64 in state.selection,
+                isProtected = state.albums[index].entry.displayPath in state.protectedPaths,
                 viewModel = viewModel,
+            )
+        }
+        items(state.media.size, key = { state.media[it].pathB64 }) { index ->
+            MediaCell(
+                entry = state.media[index],
+                selected = state.media[index].pathB64 in state.selection,
+                selectionActive = state.selectionMode,
+                viewModel = viewModel,
+                onOpenViewer = onOpenViewer,
             )
         }
     }
@@ -477,18 +510,20 @@ private fun AlbumGrid(
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun AlbumCell(
+private fun FolderTile(
     album: AlbumUi,
     selected: Boolean,
+    isProtected: Boolean,
     viewModel: ExplorerViewModel,
 ) {
     val colors = boxpixColors
     val darkTheme = isSystemInDarkTheme()
     val tone = PlaceholderTones.tone(album.cover?.pathB64 ?: album.entry.pathB64, darkTheme)
+    val cover = album.cover?.takeIf { it.mimeType?.startsWith("image/") == true }
     Box(
         modifier = Modifier
             .aspectRatio(1f)
-            .background(tone)
+            .background(if (cover != null) tone else colors.elevated)
             .then(
                 if (selected) {
                     Modifier
@@ -503,18 +538,25 @@ private fun AlbumCell(
                 onLongClick = { viewModel.startSelection(album.entry.pathB64) },
             ),
     ) {
-        album.cover
-            ?.takeIf { it.mimeType?.startsWith("image/") == true }
-            ?.let { cover ->
-                AsyncImage(
-                    model = ThumbRequest(cover.pathB64, cover.displayPath, cover.modifiedEpochSeconds),
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    placeholder = ColorPainter(tone),
-                    error = ColorPainter(tone),
-                    modifier = Modifier.matchParentSize(),
-                )
-            }
+        if (cover != null) {
+            AsyncImage(
+                model = ThumbRequest(cover.pathB64, cover.displayPath, cover.modifiedEpochSeconds),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                placeholder = ColorPainter(tone),
+                error = ColorPainter(tone),
+                modifier = Modifier.matchParentSize(),
+            )
+        } else {
+            Icon(
+                Icons.Outlined.Folder,
+                contentDescription = null,
+                tint = colors.dim,
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .size(30.dp),
+            )
+        }
         Column(
             modifier = Modifier
                 .align(Alignment.BottomStart)
@@ -524,11 +566,11 @@ private fun AlbumCell(
                         listOf(Color.Transparent, Color.Black.copy(alpha = 0.78f)),
                     ),
                 )
-                .padding(start = 10.dp, end = 10.dp, top = 22.dp, bottom = 9.dp),
+                .padding(start = 8.dp, end = 8.dp, top = 18.dp, bottom = 7.dp),
         ) {
             Text(
                 text = album.entry.name,
-                fontSize = 12.5.sp,
+                fontSize = 11.5.sp,
                 fontWeight = FontWeight.Medium,
                 color = Color.White,
                 maxLines = 1,
@@ -536,99 +578,25 @@ private fun AlbumCell(
             )
             Text(
                 text = pluralStringResource(R.plurals.explorer_items_count, album.mediaCount, album.mediaCount),
-                fontSize = 9.5.sp,
+                fontSize = 9.sp,
                 color = Color.White.copy(alpha = 0.7f),
+            )
+        }
+        if (isProtected) {
+            Icon(
+                Icons.Outlined.Lock,
+                contentDescription = stringResource(R.string.explorer_protected),
+                tint = Color.White,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(6.dp)
+                    .size(13.dp),
             )
         }
         if (selected) SelectionCheck(Modifier.align(Alignment.TopEnd))
     }
 }
 
-@Composable
-private fun FolderContent(
-    state: ExplorerViewModel.UiState,
-    viewModel: ExplorerViewModel,
-    onOpenViewer: () -> Unit,
-) {
-    Column(modifier = Modifier.fillMaxSize()) {
-        if (state.albums.isNotEmpty()) {
-            LazyRow(
-                modifier = Modifier.padding(vertical = 6.dp),
-                contentPadding = PaddingValues(horizontal = 14.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                items(state.albums.size, key = { state.albums[it].entry.pathB64 }) { index ->
-                    SubfolderChip(album = state.albums[index], viewModel = viewModel)
-                }
-            }
-        }
-        if (state.media.isEmpty() && state.albums.isEmpty()) {
-            EmptyFolderView()
-        } else if (state.media.isEmpty()) {
-            EmptyFolderView(Modifier.weight(1f))
-        } else {
-            MediaGrid(
-                state = state,
-                viewModel = viewModel,
-                onOpenViewer = onOpenViewer,
-                modifier = Modifier.weight(1f),
-            )
-        }
-    }
-}
-
-@Composable
-private fun SubfolderChip(album: AlbumUi, viewModel: ExplorerViewModel) {
-    val colors = boxpixColors
-    Row(
-        modifier = Modifier
-            .height(32.dp)
-            .border(1.dp, colors.hairlineStrong, RoundedCornerShape(100.dp))
-            .clickable { viewModel.openFolder(album.entry) }
-            .padding(horizontal = 13.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = album.entry.name,
-            style = MaterialTheme.typography.bodySmall,
-            color = colors.text,
-        )
-        Spacer(Modifier.size(6.dp))
-        Text(
-            text = "${album.mediaCount}",
-            style = MaterialTheme.typography.labelMedium,
-            color = colors.dim,
-        )
-    }
-}
-
-@Composable
-private fun MediaGrid(
-    state: ExplorerViewModel.UiState,
-    viewModel: ExplorerViewModel,
-    onOpenViewer: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    LazyVerticalGrid(
-        columns = GridCells.Fixed(state.photoColumns),
-        modifier = modifier
-            .fillMaxSize()
-            .pinchToAdjustColumns(viewModel::adjustColumns),
-        contentPadding = PaddingValues(bottom = 96.dp),
-        horizontalArrangement = Arrangement.spacedBy(2.dp),
-        verticalArrangement = Arrangement.spacedBy(2.dp),
-    ) {
-        items(state.media.size, key = { state.media[it].pathB64 }) { index ->
-            MediaCell(
-                entry = state.media[index],
-                selected = state.media[index].pathB64 in state.selection,
-                selectionActive = state.selectionMode,
-                viewModel = viewModel,
-                onOpenViewer = onOpenViewer,
-            )
-        }
-    }
-}
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable

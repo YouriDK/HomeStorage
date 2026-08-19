@@ -9,6 +9,7 @@ import com.boxpix.app.data.prefs.SettingsStore
 import com.boxpix.app.data.prefs.SortOrder
 import com.boxpix.app.data.prefs.UiPrefsStore
 import com.boxpix.app.data.storage.StorageEntry
+import com.boxpix.app.data.storage.ProtectionRepository
 import com.boxpix.app.data.storage.StorageEnv
 import com.boxpix.app.data.storage.StorageProvider
 import com.boxpix.app.data.trash.TrashRepository
@@ -36,6 +37,7 @@ class ExplorerViewModel @Inject constructor(
     private val env: StorageEnv,
     private val uiPrefs: UiPrefsStore,
     private val viewerSession: ViewerSession,
+    private val protection: ProtectionRepository,
 ) : ViewModel() {
 
     data class FolderRef(val pathB64: String, val displayPath: String, val name: String)
@@ -66,6 +68,7 @@ class ExplorerViewModel @Inject constructor(
         val selection: Set<String> = emptySet(),
         val isFake: Boolean = false,
         val move: MoveState = MoveState(),
+        val protectedPaths: List<String> = emptyList(),
     ) {
         val current: FolderRef? get() = stack.lastOrNull() ?: root
         val depth: Int get() = stack.size
@@ -90,6 +93,11 @@ class ExplorerViewModel @Inject constructor(
         viewModelScope.launch {
             uiPrefs.gridColumns.collect { columns ->
                 _state.update { it.copy(albumColumns = columns) }
+            }
+        }
+        viewModelScope.launch {
+            protection.protectedFolders.collect { folders ->
+                _state.update { it.copy(protectedPaths = folders.map { f -> f.displayPath }) }
             }
         }
     }
@@ -166,6 +174,7 @@ class ExplorerViewModel @Inject constructor(
 
     fun renameSelected(newName: String) {
         val target = _state.value.selection.singleOrNull() ?: return
+        if (guardViolation(selectedEntries())) return
         viewModelScope.launch {
             when (val renamed = provider.rename(target, newName.trim())) {
                 is FbxResult.Ok -> {
@@ -177,9 +186,37 @@ class ExplorerViewModel @Inject constructor(
         }
     }
 
+    /** The single selected folder, when the selection is exactly one folder. */
+    fun singleSelectedFolder(): StorageEntry? {
+        val path = _state.value.selection.singleOrNull() ?: return null
+        return _state.value.folders.firstOrNull { it.pathB64 == path }
+    }
+
+    fun toggleProtection() {
+        val folder = singleSelectedFolder() ?: return
+        viewModelScope.launch {
+            if (folder.displayPath in _state.value.protectedPaths) {
+                protection.unprotect(folder.pathB64)
+            } else {
+                protection.protect(folder)
+            }
+            clearSelection()
+        }
+    }
+
+    private fun guardViolation(entries: List<StorageEntry>): Boolean {
+        val protectedPaths = _state.value.protectedPaths
+        val violation = entries.any { protection.isGuarded(it.displayPath, protectedPaths) }
+        if (violation) {
+            _state.update { it.copy(error = FreeboxError.Api(ERROR_PROTECTED)) }
+        }
+        return violation
+    }
+
     fun trashSelected() {
         val entries = selectedEntries()
         if (entries.isEmpty()) return
+        if (guardViolation(entries)) return
         viewModelScope.launch {
             when (val trashed = trashRepository.trash(entries)) {
                 is FbxResult.Ok -> {
@@ -246,6 +283,7 @@ class ExplorerViewModel @Inject constructor(
         val dest = _state.value.move.current ?: return
         val selection = _state.value.selection.toList()
         if (selection.isEmpty()) return
+        if (guardViolation(selectedEntries())) return
         viewModelScope.launch {
             when (val moved = provider.move(selection, dest.pathB64)) {
                 is FbxResult.Ok -> {
@@ -345,8 +383,9 @@ class ExplorerViewModel @Inject constructor(
         SortOrder.SIZE -> compareByDescending { it.sizeBytes }
     }
 
-    private companion object {
-        const val FAKE_ROOT = "/Photos"
-        const val WAKE_HINT_DELAY_MS = 2_500L
+    companion object {
+        const val ERROR_PROTECTED = "protected_folder"
+        private const val FAKE_ROOT = "/Photos"
+        private const val WAKE_HINT_DELAY_MS = 2_500L
     }
 }

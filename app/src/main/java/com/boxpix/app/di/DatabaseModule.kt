@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import com.boxpix.app.data.db.BoxpixDatabase
 import com.boxpix.app.data.db.MediaDao
+import com.boxpix.app.data.db.ProtectedFolderDao
 import com.boxpix.app.data.db.TrashDao
 import com.boxpix.app.data.db.WorkQueueDao
 import dagger.Module
@@ -33,4 +34,7 @@ object DatabaseModule {
 
     @Provides
     fun workQueueDao(db: BoxpixDatabase): WorkQueueDao = db.workQueueDao()
+
+    @Provides
+    fun protectedFolderDao(db: BoxpixDatabase): ProtectedFolderDao = db.protectedFolderDao()
 }
