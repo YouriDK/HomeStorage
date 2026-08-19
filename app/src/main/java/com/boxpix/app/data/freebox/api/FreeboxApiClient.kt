@@ -237,6 +237,7 @@ class FreeboxApiClient @Inject constructor(
         bytes: ByteArray,
     ): FbxResult<Unit> {
         val wsUrl = base.replaceFirst("http", "ws") + "/ws/upload"
+        logWs("upload start: dir=${runCatching { PathCodec.decode(dirB64) }.getOrDefault("?")} file=$filename size=${bytes.size}")
         return try {
             var outcome: FbxResult<Unit> = FbxResult.Err(FreeboxError.Api("upload_incomplete"))
             http.webSocket(urlString = wsUrl, request = { header(X_FBX_APP_AUTH, sessionToken) }) {
@@ -272,6 +273,7 @@ class FreeboxApiClient @Inject constructor(
                 }
                 outcome = FbxResult.Ok(Unit)
             }
+            logWs("upload outcome for $filename: $outcome")
             outcome
         } catch (e: CancellationException) {
             throw e
@@ -286,8 +288,10 @@ class FreeboxApiClient @Inject constructor(
         while (true) {
             val frame = incoming.receive()
             if (frame !is Frame.Text) continue
+            val raw = frame.readText()
+            logWs("ack (awaiting $action): $raw")
             val ack = try {
-                json.parseToJsonElement(frame.readText()).jsonObject
+                json.parseToJsonElement(raw).jsonObject
             } catch (e: Exception) {
                 return FreeboxError.Network(e)
             }
@@ -383,6 +387,10 @@ class FreeboxApiClient @Inject constructor(
             logHttpFailure(url, response.status.value, parsed.errorCode)
             FbxResult.Err(FreeboxError.Api(parsed.errorCode ?: "unknown_error", parsed.msg))
         }
+    }
+
+    private fun logWs(message: String) {
+        if (BuildConfig.DEBUG) Log.i(TAG, "WS $message")
     }
 
     private fun logTransportFailure(url: String, cause: Exception) {

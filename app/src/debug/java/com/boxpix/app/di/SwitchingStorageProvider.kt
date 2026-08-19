@@ -40,4 +40,7 @@ class SwitchingStorageProvider(
 
     override suspend fun delete(pathsB64: List<String>): FbxResult<Unit> =
         active.delete(pathsB64)
+
+    override suspend fun upload(parentB64: String, name: String, bytes: ByteArray): FbxResult<Unit> =
+        active.upload(parentB64, name, bytes)
 }
