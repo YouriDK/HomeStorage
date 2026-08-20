@@ -13,8 +13,11 @@ import androidx.room.RoomDatabase
         TagEntity::class,
         MediaTagEntity::class,
     ],
-    version = 6, // v6: manual takenAt + location + excluded folders (pre-release, destructive migration)
-    exportSchema = false,
+    // v6 is the migration baseline: from here on schema changes ship a real
+    // Migration (tags and folder lists must survive), validated against the
+    // schema JSONs committed under app/schemas/.
+    version = 6,
+    exportSchema = true,
 )
 abstract class BoxpixDatabase : RoomDatabase() {
     abstract fun trashDao(): TrashDao

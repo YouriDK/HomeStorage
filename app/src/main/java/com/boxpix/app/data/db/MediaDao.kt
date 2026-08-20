@@ -14,12 +14,9 @@ interface MediaDao {
     @Query("SELECT * FROM media_items WHERE providerId = :providerId AND folderDisplayPath = :folder")
     suspend fun folderItems(providerId: String, folder: String): List<MediaItemEntity>
 
-    /** Drops rows of a folder that no longer exist on the disk. */
-    @Query(
-        "DELETE FROM media_items WHERE providerId = :providerId AND folderDisplayPath = :folder " +
-            "AND pathB64 NOT IN (:keepPathsB64)",
-    )
-    suspend fun deleteFolderRowsNotIn(providerId: String, folder: String, keepPathsB64: List<String>)
+    /** Callers chunk the list (SQLite variable cap) — see SearchQueryBuilder.IN_CHUNK_SIZE. */
+    @Query("DELETE FROM media_items WHERE providerId = :providerId AND pathB64 IN (:pathsB64)")
+    suspend fun deleteByPaths(providerId: String, pathsB64: List<String>)
 
     @Query(
         "UPDATE media_items SET hasThumb = :hasThumb WHERE providerId = :providerId AND pathB64 = :pathB64",

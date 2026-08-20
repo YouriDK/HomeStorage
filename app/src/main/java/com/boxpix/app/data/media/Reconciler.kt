@@ -8,6 +8,7 @@ import com.boxpix.app.data.db.MediaItemEntity
 import com.boxpix.app.data.db.WorkQueueDao
 import com.boxpix.app.data.db.WorkQueueEntity
 import com.boxpix.app.data.db.ExcludedFolderDao
+import com.boxpix.app.data.db.SearchQueryBuilder
 import com.boxpix.app.data.freebox.api.PathCodec
 import com.boxpix.app.data.storage.FolderListsSync
 import com.boxpix.app.data.storage.RootLocator
@@ -102,7 +103,12 @@ class Reconciler @Inject constructor(
                 )
             }
             if (rows.isNotEmpty()) mediaDao.upsert(rows)
-            mediaDao.deleteFolderRowsNotIn(providerId, folderDisplay, files.map { it.pathB64 })
+            // Stale rows are resolved in memory, then deleted in bounded chunks:
+            // a NOT IN over a large folder would blow SQLite's variable cap.
+            val stale = known.keys - files.map { it.pathB64 }.toSet()
+            stale.chunked(SearchQueryBuilder.IN_CHUNK_SIZE).forEach { chunk ->
+                mediaDao.deleteByPaths(providerId, chunk)
+            }
 
             files.forEach { file ->
                 // Extension gate (V1 feedback): a pdf/zip/sidecar never creates a

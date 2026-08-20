@@ -45,6 +45,12 @@ android {
     }
 }
 
+// Versioned Room schemas: the committed JSONs are what future migrations are
+// written and validated against.
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
+}
+
 kotlin {
     compilerOptions {
         jvmTarget.set(JvmTarget.JVM_17)

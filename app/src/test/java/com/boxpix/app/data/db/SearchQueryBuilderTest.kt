@@ -77,6 +77,39 @@ class SearchQueryBuilderTest {
         assertEquals(listOf<Any>("fake"), query.boundArgs())
     }
 
+    @Test
+    fun `a tag carried by thousands of files stays under the variable cap`() {
+        val paths = List(2_500) { "path-$it" }
+        val query = SearchQueryBuilder.build(
+            providerId = "freebox",
+            rootDisplayPath = "/Archive 1",
+            nameContains = null,
+            fromEpochSeconds = null,
+            toEpochSeconds = null,
+            folderPrefix = null,
+            pathsWithAllTags = paths,
+        )
+        // 3 chunks of at most 900 variables each, OR'd together.
+        assertEquals(3, Regex("pathB64 IN").findAll(query.sql).count())
+        assertEquals(2, Regex(" OR pathB64 IN").findAll(query.sql).count())
+        assertEquals(2_500 + 3, query.argCount) // paths + provider + root pair
+        assertTrue(query.boundArgs().containsAll(listOf("path-0", "path-899", "path-2499")))
+    }
+
+    @Test
+    fun `no tag filter means no IN clause`() {
+        val query = SearchQueryBuilder.build(
+            providerId = "freebox",
+            rootDisplayPath = "/Archive 1",
+            nameContains = null,
+            fromEpochSeconds = null,
+            toEpochSeconds = null,
+            folderPrefix = null,
+            pathsWithAllTags = null,
+        )
+        assertFalse(query.sql.contains("IN ("))
+    }
+
     /** Replays the bind calls to recover the positional arguments. */
     private fun androidx.sqlite.db.SupportSQLiteQuery.boundArgs(): List<Any?> {
         val slots = arrayOfNulls<Any?>(argCount)

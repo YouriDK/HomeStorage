@@ -61,13 +61,23 @@ object SearchQueryBuilder {
             if (pathsWithAllTags.isEmpty()) {
                 sql.append(" AND 0") // tags selected but nothing carries them all
             } else {
+                // SQLite caps bound variables (999 historically): a popular tag
+                // would blow a single IN, so the list is split into OR'd chunks.
+                val chunks = pathsWithAllTags.chunked(IN_CHUNK_SIZE)
+                sql.append(" AND (")
                 sql.append(
-                    " AND pathB64 IN (${pathsWithAllTags.joinToString(",") { "?" }})",
+                    chunks.joinToString(" OR ") { chunk ->
+                        "pathB64 IN (${chunk.joinToString(",") { "?" }})"
+                    },
                 )
+                sql.append(")")
                 args.addAll(pathsWithAllTags)
             }
         }
         sql.append(" ORDER BY COALESCE(takenAtEpochSeconds, mtime) DESC")
         return SimpleSQLiteQuery(sql.toString(), args.toTypedArray())
     }
+
+    /** Safely under SQLite's 999-variable floor, leaving room for the other filters. */
+    const val IN_CHUNK_SIZE = 900
 }

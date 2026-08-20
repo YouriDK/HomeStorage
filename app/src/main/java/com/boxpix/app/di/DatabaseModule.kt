@@ -25,8 +25,11 @@ object DatabaseModule {
     @Singleton
     fun database(@ApplicationContext context: Context): BoxpixDatabase =
         Room.databaseBuilder(context, BoxpixDatabase::class.java, "boxpix.db")
-            // Pre-release: the index is a reconstructible cache, migrations start at v1.0.
-            .fallbackToDestructiveMigration()
+            // v6 is the baseline: pre-baseline installs (≤5) are wiped — their
+            // index rebuilds by reconciliation. From 6 on, every schema change
+            // ships a real Migration; a missing one now crashes instead of
+            // silently erasing tags and folder lists.
+            .fallbackToDestructiveMigrationFrom(1, 2, 3, 4, 5)
             .build()
 
     @Provides

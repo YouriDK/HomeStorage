@@ -33,9 +33,9 @@ class InMemoryMediaDao : MediaDao {
     override suspend fun folderItems(providerId: String, folder: String) =
         store.value.values.filter { it.providerId == providerId && it.folderDisplayPath == folder }
 
-    override suspend fun deleteFolderRowsNotIn(providerId: String, folder: String, keepPathsB64: List<String>) {
+    override suspend fun deleteByPaths(providerId: String, pathsB64: List<String>) {
         store.value = store.value.filterValues {
-            !(it.providerId == providerId && it.folderDisplayPath == folder && it.pathB64 !in keepPathsB64)
+            !(it.providerId == providerId && it.pathB64 in pathsB64)
         }
     }
 
