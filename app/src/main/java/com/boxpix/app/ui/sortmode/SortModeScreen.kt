@@ -59,6 +59,7 @@ import com.boxpix.app.ui.common.message
 import com.boxpix.app.ui.explorer.MoveSheet
 import com.boxpix.app.ui.explorer.ExplorerViewModel
 import com.boxpix.app.ui.icons.Lucide
+import com.boxpix.app.ui.theme.Hues
 import com.boxpix.app.ui.theme.boxpixColors
 import kotlinx.coroutines.delay
 
@@ -420,7 +421,7 @@ private fun DestinationCard(destination: PinnedDestination, onClick: () -> Unit)
             .padding(horizontal = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(Lucide.Folder, contentDescription = null, tint = colors.dim, modifier = Modifier.size(18.dp))
+        Icon(Lucide.Folder, contentDescription = null, tint = Hues.Folder, modifier = Modifier.size(18.dp))
         Spacer(Modifier.width(8.dp))
         Text(
             text = destination.name,

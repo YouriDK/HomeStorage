@@ -83,6 +83,7 @@ import com.boxpix.app.ui.common.message
 import com.boxpix.app.ui.explorer.MoveSheet
 import com.boxpix.app.ui.explorer.NameDialog
 import com.boxpix.app.ui.icons.Lucide
+import com.boxpix.app.ui.theme.Hues
 import com.boxpix.app.ui.theme.boxpixColors
 import kotlinx.coroutines.delay
 
@@ -650,7 +651,7 @@ private fun ViewerActionBar(
         ViewerAction(
             icon = if (isFavorite) Lucide.HeartFilled else Lucide.Heart,
             label = stringResource(R.string.viewer_action_favourite),
-            tint = if (isFavorite) Color(0xFF6FC0B3) else Color.White,
+            tint = if (isFavorite) Hues.Favorite else Color.White,
             onClick = onFavorite,
         )
         ViewerAction(Lucide.FolderInput, stringResource(R.string.viewer_action_move), onClick = onMove)

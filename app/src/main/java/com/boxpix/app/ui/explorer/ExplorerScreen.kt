@@ -77,6 +77,7 @@ import com.boxpix.app.ui.common.formatDuration
 import com.boxpix.app.ui.common.message
 import com.boxpix.app.ui.explorer.ExplorerViewModel.AlbumUi
 import com.boxpix.app.ui.icons.Lucide
+import com.boxpix.app.ui.theme.Hues
 import com.boxpix.app.ui.theme.boxpixColors
 
 @Composable
@@ -698,10 +699,15 @@ private fun FolderTile(
                 modifier = Modifier.matchParentSize(),
             )
         } else {
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .background(Hues.Folder.copy(alpha = 0.08f)),
+            )
             Icon(
                 Lucide.Folder,
                 contentDescription = null,
-                tint = colors.dim,
+                tint = Hues.Folder,
                 modifier = Modifier
                     .align(Alignment.Center)
                     .size(30.dp),
@@ -835,7 +841,7 @@ private fun MediaCell(
             Icon(
                 Lucide.HeartFilled,
                 contentDescription = null,
-                tint = Color.White,
+                tint = Hues.Favorite,
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .padding(6.dp)

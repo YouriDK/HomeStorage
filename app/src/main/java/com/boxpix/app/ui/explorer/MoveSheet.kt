@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import com.boxpix.app.R
 import com.boxpix.app.data.storage.StorageEntry
 import com.boxpix.app.ui.icons.Lucide
+import com.boxpix.app.ui.theme.Hues
 import com.boxpix.app.ui.theme.boxpixColors
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -118,7 +119,7 @@ fun MoveSheet(
                             Icon(
                                 Lucide.Folder,
                                 contentDescription = null,
-                                tint = colors.dim,
+                                tint = Hues.Folder,
                                 modifier = Modifier.size(20.dp),
                             )
                             Spacer(Modifier.size(12.dp))
