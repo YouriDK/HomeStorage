@@ -1,6 +1,8 @@
 package com.boxpix.app.ui.viewer
 
 import com.boxpix.app.data.db.MediaItemEntity
+import com.boxpix.app.data.media.FileKind
+import com.boxpix.app.data.media.MediaTypes
 import com.boxpix.app.data.storage.StorageEntry
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -16,7 +18,10 @@ data class MediaRef(
     val takenAtEpochSeconds: Long?,
     val isVideo: Boolean,
     val durationSeconds: Long?,
-)
+) {
+    /** Derived once at construction — never recomputed in composition. */
+    val kind: FileKind = MediaTypes.kindOf(name)
+}
 
 fun StorageEntry.toMediaRef() = MediaRef(
     pathB64 = pathB64,

@@ -60,11 +60,13 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.boxpix.app.R
+import com.boxpix.app.data.media.FileKind
 import com.boxpix.app.data.net.ConnectionMode
 import com.boxpix.app.data.prefs.SortOrder
 import com.boxpix.app.data.storage.StorageEntry
 import com.boxpix.app.ui.common.EmptyFolderView
 import com.boxpix.app.ui.common.ErrorView
+import com.boxpix.app.ui.common.FileKindPlaceholder
 import com.boxpix.app.ui.common.GridSkeleton
 import com.boxpix.app.ui.common.PlaceholderTones
 import com.boxpix.app.ui.common.TagPickerSheet
@@ -785,19 +787,28 @@ private fun MediaCell(
                 onLongClick = { viewModel.startSelection(entry.pathB64) },
             ),
     ) {
-        AsyncImage(
-            model = ThumbRequest(
-                entry.pathB64,
-                entry.displayPath,
-                entry.modifiedEpochSeconds,
-                isVideo = isVideo,
-            ),
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            placeholder = ColorPainter(tone),
-            error = ColorPainter(tone),
-            modifier = Modifier.matchParentSize(),
-        )
+        if (entry.kind != FileKind.PHOTO && entry.kind != FileKind.VIDEO) {
+            // Non-media never get a thumbnail (extension gate): flat stand-in.
+            FileKindPlaceholder(
+                kind = entry.kind,
+                fileName = entry.name,
+                modifier = Modifier.matchParentSize(),
+            )
+        } else {
+            AsyncImage(
+                model = ThumbRequest(
+                    entry.pathB64,
+                    entry.displayPath,
+                    entry.modifiedEpochSeconds,
+                    isVideo = isVideo,
+                ),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                placeholder = ColorPainter(tone),
+                error = ColorPainter(tone),
+                modifier = Modifier.matchParentSize(),
+            )
+        }
         if (isVideo) {
             Row(
                 modifier = Modifier

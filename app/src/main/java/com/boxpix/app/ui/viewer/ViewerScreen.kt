@@ -70,6 +70,8 @@ import androidx.media3.ui.PlayerView
 import coil.compose.AsyncImage
 import coil.compose.SubcomposeAsyncImage
 import com.boxpix.app.R
+import com.boxpix.app.data.media.FileKind
+import com.boxpix.app.ui.common.FileKindPlaceholder
 import com.boxpix.app.ui.common.HdRequest
 import com.boxpix.app.ui.common.TagPickerSheet
 import com.boxpix.app.ui.common.ThumbRequest
@@ -715,6 +717,17 @@ private fun InfoSheet(
                 }
             }
             Spacer(Modifier.height(6.dp))
+            if (item.kind != FileKind.PHOTO && item.kind != FileKind.VIDEO) {
+                FileKindPlaceholder(
+                    kind = item.kind,
+                    fileName = item.name,
+                    iconSize = 34.dp,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(96.dp),
+                )
+                Spacer(Modifier.height(6.dp))
+            }
             InfoRow(
                 label = stringResource(R.string.viewer_info_taken),
                 value = formatDate(item.takenAtEpochSeconds ?: item.mtime),

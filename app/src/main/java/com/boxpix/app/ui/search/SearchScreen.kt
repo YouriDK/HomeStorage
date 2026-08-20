@@ -55,6 +55,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.boxpix.app.R
 import com.boxpix.app.data.db.SearchQueryBuilder
+import com.boxpix.app.data.media.FileKind
+import com.boxpix.app.ui.common.FileKindPlaceholder
 import com.boxpix.app.ui.common.PlaceholderTones
 import com.boxpix.app.ui.common.ThumbRequest
 import com.boxpix.app.ui.common.formatDate
@@ -302,14 +304,23 @@ private fun ResultCell(item: MediaRef, onClick: () -> Unit) {
             .background(tone)
             .clickable(onClick = onClick),
     ) {
-        AsyncImage(
-            model = ThumbRequest(item.pathB64, item.displayPath, item.mtime, isVideo = item.isVideo),
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            placeholder = ColorPainter(tone),
-            error = ColorPainter(tone),
-            modifier = Modifier.matchParentSize(),
-        )
+        if (item.kind != FileKind.PHOTO && item.kind != FileKind.VIDEO) {
+            // Non-media never get a thumbnail (extension gate): flat stand-in.
+            FileKindPlaceholder(
+                kind = item.kind,
+                fileName = item.name,
+                modifier = Modifier.matchParentSize(),
+            )
+        } else {
+            AsyncImage(
+                model = ThumbRequest(item.pathB64, item.displayPath, item.mtime, isVideo = item.isVideo),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                placeholder = ColorPainter(tone),
+                error = ColorPainter(tone),
+                modifier = Modifier.matchParentSize(),
+            )
+        }
         if (item.isVideo) {
             Icon(
                 Lucide.PlayFilled,

@@ -2,6 +2,8 @@ package com.boxpix.app.data.storage
 
 import com.boxpix.app.core.FbxResult
 import com.boxpix.app.core.FreeboxError
+import com.boxpix.app.data.media.FileKind
+import com.boxpix.app.data.media.MediaTypes
 
 /**
  * The only storage abstraction the rest of the app is allowed to talk to.
@@ -71,4 +73,7 @@ data class StorageEntry(
     val hidden: Boolean,
     /** Known for fake/indexed videos only; null until M3 metadata lands. */
     val durationSeconds: Long? = null,
-)
+) {
+    /** Derived once at construction — never recomputed in composition. */
+    val kind: FileKind = if (isDirectory) FileKind.OTHER else MediaTypes.kindOf(name)
+}

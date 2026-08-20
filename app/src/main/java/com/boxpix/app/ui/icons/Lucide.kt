@@ -114,6 +114,114 @@ object Lucide {
         )
     }
 
+    val FileArchive: ImageVector by lazy {
+        lucide(
+            "file-archive",
+            autoMirror = false,
+            paths = arrayOf(
+        "M10 12v-1",
+        "M10 18v-2",
+        "M10 7V6",
+        "M14 2v4a2 2 0 0 0 2 2h4",
+        "M15.5 22H18a2 2 0 0 0 2-2V7l-5-5H6a2 2 0 0 0-2 2v16a2 2 0 0 0 .274 1.01",
+        "M8 20a2 2 0 1 0 4 0a2 2 0 1 0 -4 0",
+            ),
+        )
+    }
+
+    val FileAudio: ImageVector by lazy {
+        lucide(
+            "file-audio",
+            autoMirror = false,
+            paths = arrayOf(
+        "M17.5 22h.5a2 2 0 0 0 2-2V7l-5-5H6a2 2 0 0 0-2 2v3",
+        "M14 2v4a2 2 0 0 0 2 2h4",
+        "M2 19a2 2 0 1 1 4 0v1a2 2 0 1 1-4 0v-4a6 6 0 0 1 12 0v4a2 2 0 1 1-4 0v-1a2 2 0 1 1 4 0",
+            ),
+        )
+    }
+
+    val FileCode: ImageVector by lazy {
+        lucide(
+            "file-code",
+            autoMirror = false,
+            paths = arrayOf(
+        "M10 12.5 8 15l2 2.5",
+        "m14 12.5 2 2.5-2 2.5",
+        "M14 2v4a2 2 0 0 0 2 2h4",
+        "M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z",
+            ),
+        )
+    }
+
+    val FileImage: ImageVector by lazy {
+        lucide(
+            "file-image",
+            autoMirror = false,
+            paths = arrayOf(
+        "M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z",
+        "M14 2v4a2 2 0 0 0 2 2h4",
+        "M8 12a2 2 0 1 0 4 0a2 2 0 1 0 -4 0",
+        "m20 17-1.296-1.296a2.41 2.41 0 0 0-3.408 0L9 22",
+            ),
+        )
+    }
+
+    val FileSpreadsheet: ImageVector by lazy {
+        lucide(
+            "file-spreadsheet",
+            autoMirror = false,
+            paths = arrayOf(
+        "M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z",
+        "M14 2v4a2 2 0 0 0 2 2h4",
+        "M8 13h2",
+        "M14 13h2",
+        "M8 17h2",
+        "M14 17h2",
+            ),
+        )
+    }
+
+    val FileText: ImageVector by lazy {
+        lucide(
+            "file-text",
+            autoMirror = false,
+            paths = arrayOf(
+        "M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z",
+        "M14 2v4a2 2 0 0 0 2 2h4",
+        "M10 9H8",
+        "M16 13H8",
+        "M16 17H8",
+            ),
+        )
+    }
+
+    val FileType: ImageVector by lazy {
+        lucide(
+            "file-type",
+            autoMirror = false,
+            paths = arrayOf(
+        "M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z",
+        "M14 2v4a2 2 0 0 0 2 2h4",
+        "M9 13v-1h6v1",
+        "M12 12v6",
+        "M11 18h2",
+            ),
+        )
+    }
+
+    val FileVideo: ImageVector by lazy {
+        lucide(
+            "file-video",
+            autoMirror = false,
+            paths = arrayOf(
+        "M14 2v4a2 2 0 0 0 2 2h4",
+        "M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z",
+        "M15.033 13.44a.647.647 0 0 1 0 1.12l-4.065 2.352a.645.645 0 0 1-.968-.56v-4.704a.645.645 0 0 1 .967-.56z",
+            ),
+        )
+    }
+
     val File: ImageVector by lazy {
         lucide(
             "file",
