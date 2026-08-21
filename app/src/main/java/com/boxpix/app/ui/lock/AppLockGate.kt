@@ -42,6 +42,13 @@ import com.boxpix.app.ui.theme.boxpixColors
 /**
  * SPEC §2 app lock: system credential (PIN / pattern / biometrics) via
  * BiometricPrompt. Locks on launch and every return from the background.
+ *
+ * [unlocked] is deliberately a plain `remember`, never `rememberSaveable`: a
+ * saveable would be written to the saved instance state on the way to the
+ * background, so the lock would come back already open after the process is
+ * killed and restored. In-memory means killed process = locked, which is the
+ * point. Surviving a rotation is instead handled by the activity's
+ * `configChanges` in the manifest, which stops the recreation happening at all.
  */
 @Composable
 fun AppLockGate(

@@ -22,9 +22,14 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Boxpix">
 
+        <!-- Compose absorbs configuration changes itself, so the activity is never
+             recreated for them. Without this, rotating re-locks the app (AppLockGate
+             holds `unlocked` in memory on purpose) and the NavHost loses its back
+             stack, and every rotation reloads the grid and the full-size image. -->
         <activity
             android:name=".MainActivity"
-            android:exported="true">
+            android:exported="true"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|density|fontScale|layoutDirection|uiMode|locale|keyboard|keyboardHidden|navigation">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
