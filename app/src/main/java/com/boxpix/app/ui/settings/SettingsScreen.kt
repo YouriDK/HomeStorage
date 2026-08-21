@@ -38,9 +38,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.boxpix.app.BuildConfig
 import com.boxpix.app.R
 import com.boxpix.app.data.net.ConnectionMode
 import com.boxpix.app.data.prefs.UiPrefsStore
@@ -340,6 +342,8 @@ fun SettingsScreen(
                 }
                 HairlineDivider()
             }
+
+            VersionFooter()
             Spacer(Modifier.height(24.dp))
         }
     }
@@ -419,6 +423,24 @@ private fun BoxpixSwitch(checked: Boolean, onChecked: (Boolean) -> Unit) {
             uncheckedThumbColor = colors.surface,
             uncheckedBorderColor = colors.hairlineStrong,
         ),
+    )
+}
+
+@Composable
+private fun VersionFooter() {
+    Text(
+        text = stringResource(
+            R.string.settings_version,
+            BuildConfig.VERSION_NAME,
+            BuildConfig.VERSION_CODE,
+            BuildConfig.GIT_SHA,
+        ),
+        style = MaterialTheme.typography.labelMedium,
+        color = boxpixColors.faint,
+        textAlign = TextAlign.Center,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 28.dp),
     )
 }
 

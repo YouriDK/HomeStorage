@@ -300,6 +300,9 @@
     <string name="settings_sleep_disk_hint">Next request stalls for 6 seconds</string>
     <string name="settings_reset_fake">Reset fake data</string>
 
+    <!-- Version name, version code, short git SHA -->
+    <string name="settings_version">Boxpix %1$s · build %2$d · %3$s</string>
+
     <!-- Trash screen -->
     <string name="trash_title">Trash</string>
     <string name="trash_empty">Trash is empty.</string>

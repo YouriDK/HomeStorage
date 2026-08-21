@@ -9,6 +9,29 @@ plugins {
     alias(libs.plugins.hilt)
 }
 
+// `boxpix.version` in gradle.properties is the single source of truth. The name
+// stays clean semver (Play shows it, and FreeboxAppIdentity sends it to the box
+// as app_version); the code is derived so it can only ever grow.
+val appVersionName: String = providers.gradleProperty("boxpix.version").get().trim()
+
+val appVersionCode: Int = appVersionName.split(".").let { parts ->
+    require(parts.size == 3) { "boxpix.version must be MAJOR.MINOR.PATCH, got '$appVersionName'" }
+    val (major, minor, patch) = parts.map {
+        it.toIntOrNull() ?: error("boxpix.version has a non-numeric part: '$appVersionName'")
+    }
+    require(minor in 0..99 && patch in 0..99) {
+        "boxpix.version keeps MINOR and PATCH under 100, got '$appVersionName'"
+    }
+    major * 10_000 + minor * 100 + patch
+}
+
+// Short SHA for the in-app footer only — never in versionName. providers.exec is
+// what keeps the configuration cache valid here; a raw ProcessBuilder would not.
+val gitSha: String = runCatching {
+    providers.exec { commandLine("git", "rev-parse", "--short", "HEAD") }
+        .standardOutput.asText.get().trim()
+}.getOrNull()?.takeIf { it.isNotEmpty() } ?: "nogit"
+
 android {
     namespace = "com.boxpix.app"
     compileSdk = 35
@@ -17,8 +40,9 @@ android {
         applicationId = "com.boxpix.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = appVersionCode
+        versionName = appVersionName
+        buildConfigField("String", "GIT_SHA", "\"$gitSha\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 

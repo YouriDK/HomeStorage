@@ -40,6 +40,7 @@ Kotlin · Jetpack Compose (Material 3, true-black AMOLED theme) · Hilt · Ktor 
 ```
 
 - Requires JDK 17+, Android SDK 35. `minSdk 26`, `targetSdk 35`.
+- The version lives in one place: `boxpix.version` (`MAJOR.MINOR.PATCH`) in `gradle.properties`. `versionCode` is derived from it as `major*10000 + minor*100 + patch`, so it can only grow; `versionName` stays plain semver. The short git SHA is exposed as `BuildConfig.GIT_SHA` and shown at the bottom of Settings — never folded into the version name.
 - **No Freebox needed to develop**: debug builds ship a deterministic fake provider (~190 seeded media, simulated latency, disk-wakeup mode). It is the default in debug — switch to the real box in Settings → Debug.
 - With a real Freebox Pop: launch the app on the same LAN, tap *Connect to my Freebox*, accept the pairing on the box's front panel, pick a disk, *Start scanning*.
 
