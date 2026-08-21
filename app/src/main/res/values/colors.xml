@@ -1,4 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="ic_launcher_background">#0A0A0C</color>
+
+    <!-- Pre-setContent window background. Follows the system, which is what the
+         in-app theme does by default; forcing the other mode in Settings trades
+         this for a brief flash of the system colour. -->
+    <color name="boxpix_window_bg">#FBFBFC</color>
 </resources>

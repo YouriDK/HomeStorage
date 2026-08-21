@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Compose draws everything; this only avoids a white flash before setContent. -->
+    <!-- Compose draws everything; this style only avoids a flash before setContent.
+         statusBarColor/navigationBarColor used to be set here: both are ignored from
+         API 35 on, where edge-to-edge is enforced and the bars are always transparent. -->
     <style name="Theme.Boxpix" parent="android:Theme.Material.NoActionBar">
-        <item name="android:windowBackground">@android:color/black</item>
-        <item name="android:statusBarColor">@android:color/black</item>
-        <item name="android:navigationBarColor">@android:color/black</item>
+        <item name="android:windowBackground">@color/boxpix_window_bg</item>
     </style>
 </resources>

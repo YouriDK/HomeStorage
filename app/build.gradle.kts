@@ -34,12 +34,12 @@ val gitSha: String = runCatching {
 
 android {
     namespace = "com.boxpix.app"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.boxpix.app"
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 36
         versionCode = appVersionCode
         versionName = appVersionName
         buildConfigField("String", "GIT_SHA", "\"$gitSha\"")
