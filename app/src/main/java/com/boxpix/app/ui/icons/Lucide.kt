@@ -501,6 +501,18 @@ object Lucide {
         )
     }
 
+    val Upload: ImageVector by lazy {
+        lucide(
+            "upload",
+            autoMirror = false,
+            paths = arrayOf(
+        "M12 3v12",
+        "m17 8-5-5-5 5",
+        "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4",
+            ),
+        )
+    }
+
     val Undo2: ImageVector by lazy {
         lucide(
             "undo-2",

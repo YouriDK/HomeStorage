@@ -109,6 +109,7 @@ dependencies {
     implementation(libs.media3.exoplayer)
     implementation(libs.media3.ui)
     implementation(libs.androidx.biometric)
+    implementation(libs.androidx.documentfile)
 
     // XMP write-through (validated by docs/spike-xmp.md)
     implementation(libs.commons.imaging)

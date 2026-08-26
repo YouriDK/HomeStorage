@@ -65,7 +65,19 @@ class ExplorerViewModel @Inject constructor(
     private val metadataRepository: MetadataRepository,
     private val vaultSession: VaultSession,
     private val vaultMeta: VaultMetaRepository,
+    private val phoneUploader: com.boxpix.app.data.upload.PhoneUploader,
 ) : ViewModel() {
+
+    val uploadProgress = phoneUploader.progress
+    val uploadOutcome = phoneUploader.lastOutcome
+
+    /** Uploads picked phone files into the folder currently on screen. */
+    fun uploadToCurrentFolder(sources: List<suspend () -> com.boxpix.app.data.upload.PhoneUploader.PhoneFile?>) {
+        val dest = _state.value.current?.displayPath ?: return
+        phoneUploader.upload(dest, sources)
+    }
+
+    fun consumeUploadOutcome() = phoneUploader.consumeOutcome()
 
     private val _downloadConfirm =
         MutableStateFlow<DownloadRequester.Outcome.NeedsConfirmation?>(null)
@@ -159,6 +171,11 @@ class ExplorerViewModel @Inject constructor(
             val root = resolveRoot(isFake)
             _state.update { it.copy(root = root, isFake = isFake) }
             if (root != null) load(initial = true)
+        }
+        viewModelScope.launch {
+            phoneUploader.lastOutcome.collect { outcome ->
+                if (outcome != null) load(initial = false)
+            }
         }
         viewModelScope.launch {
             // Explicit one-shot entry requests from the vault session (unlock

@@ -1,6 +1,8 @@
 package com.boxpix.app.ui.explorer
 
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -53,6 +55,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.material3.CircularProgressIndicator
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.compose.ui.graphics.painter.ColorPainter
 import androidx.compose.ui.layout.ContentScale
@@ -68,6 +75,7 @@ import com.boxpix.app.ui.common.EmptyFolderView
 import com.boxpix.app.ui.common.ErrorView
 import com.boxpix.app.ui.common.FileKindPlaceholder
 import com.boxpix.app.ui.common.GridSkeleton
+import com.boxpix.app.ui.common.PhonePicks
 import com.boxpix.app.ui.common.PlaceholderTones
 import com.boxpix.app.ui.common.TagPickerSheet
 import com.boxpix.app.ui.common.ThumbRequest
@@ -108,6 +116,27 @@ fun ExplorerScreen(
     LaunchedEffect(state.pendingVaultEntry) {
         if (state.pendingVaultEntry) viewModel.consumeVaultEntry(vaultLabel)
     }
+
+    // Phone -> disk uploads: system pickers, resolved lazily on IO.
+    val appContext = androidx.compose.ui.platform.LocalContext.current.applicationContext
+    val uploadScope = rememberCoroutineScope()
+    val pickMedia = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickMultipleVisualMedia(),
+    ) { uris ->
+        if (uris.isNotEmpty()) viewModel.uploadToCurrentFolder(PhonePicks.mediaSources(appContext, uris))
+    }
+    val pickTree = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree(),
+    ) { tree ->
+        if (tree != null) {
+            uploadScope.launch {
+                val sources = withContext(Dispatchers.IO) { PhonePicks.treeSources(appContext, tree) }
+                viewModel.uploadToCurrentFolder(sources)
+            }
+        }
+    }
+    val uploadProgress by viewModel.uploadProgress.collectAsStateWithLifecycle()
+    val uploadOutcome by viewModel.uploadOutcome.collectAsStateWithLifecycle()
 
     var showNewFolderDialog by remember { mutableStateOf(false) }
     var showRenameDialog by remember { mutableStateOf(false) }
@@ -160,9 +189,58 @@ fun ExplorerScreen(
                 SortRow(
                     sort = state.sort,
                     onSortSelected = viewModel::setSort,
-                    newFolderEnabled = !state.offline,
+                    writeEnabled = !state.offline && uploadProgress == null,
                     onNewFolder = { showNewFolderDialog = true },
+                    onUploadPhotos = {
+                        pickMedia.launch(
+                            androidx.activity.result.PickVisualMediaRequest(
+                                ActivityResultContracts.PickVisualMedia.ImageAndVideo,
+                            ),
+                        )
+                    },
+                    onUploadFolder = { pickTree.launch(null) },
                 )
+            }
+
+            uploadProgress?.let { progress ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 4.dp)
+                        .background(boxpixColors.elevated, RoundedCornerShape(10.dp))
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(14.dp),
+                        color = boxpixColors.accent,
+                        trackColor = boxpixColors.hairline,
+                        strokeWidth = 1.5.dp,
+                    )
+                    Spacer(Modifier.size(10.dp))
+                    Text(
+                        text = stringResource(
+                            R.string.upload_progress,
+                            progress.fileName.orEmpty(),
+                            progress.index,
+                            progress.total,
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = boxpixColors.text,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+            uploadOutcome?.let { outcome ->
+                val summary = buildString {
+                    append(pluralStringResource(R.plurals.upload_done, outcome.uploaded, outcome.uploaded))
+                    if (outcome.failed > 0) append(" · ").append(stringResource(R.string.upload_failed, outcome.failed))
+                    if (outcome.skippedTooLarge > 0) {
+                        append(" · ").append(stringResource(R.string.upload_skipped_large, outcome.skippedTooLarge))
+                    }
+                }
+                ErrorBanner(message = summary, onDismiss = viewModel::consumeUploadOutcome)
             }
 
             if (state.offline) {
@@ -407,11 +485,14 @@ private fun Badge(label: String, dot: Boolean) {
 private fun SortRow(
     sort: SortOrder,
     onSortSelected: (SortOrder) -> Unit,
-    newFolderEnabled: Boolean,
+    writeEnabled: Boolean,
     onNewFolder: () -> Unit,
+    onUploadPhotos: () -> Unit,
+    onUploadFolder: () -> Unit,
 ) {
     val colors = boxpixColors
     var menuOpen by remember { mutableStateOf(false) }
+    var addMenuOpen by remember { mutableStateOf(false) }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -445,8 +526,41 @@ private fun SortRow(
             }
         }
         Spacer(Modifier.weight(1f))
-        TextButton(onClick = onNewFolder, enabled = newFolderEnabled) {
-            val tint = if (newFolderEnabled) colors.accent else colors.faint
+        Box {
+            TextButton(onClick = { addMenuOpen = true }, enabled = writeEnabled) {
+                val tint = if (writeEnabled) colors.accent else colors.faint
+                Icon(
+                    Lucide.Upload,
+                    contentDescription = null,
+                    tint = tint,
+                    modifier = Modifier.size(16.dp),
+                )
+                Spacer(Modifier.size(6.dp))
+                Text(
+                    text = stringResource(R.string.explorer_add),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = tint,
+                )
+            }
+            DropdownMenu(expanded = addMenuOpen, onDismissRequest = { addMenuOpen = false }) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.explorer_upload_photos), color = colors.text, style = MaterialTheme.typography.bodyMedium) },
+                    onClick = {
+                        addMenuOpen = false
+                        onUploadPhotos()
+                    },
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.explorer_upload_folder), color = colors.text, style = MaterialTheme.typography.bodyMedium) },
+                    onClick = {
+                        addMenuOpen = false
+                        onUploadFolder()
+                    },
+                )
+            }
+        }
+        TextButton(onClick = onNewFolder, enabled = writeEnabled) {
+            val tint = if (writeEnabled) colors.accent else colors.faint
             Icon(
                 Lucide.Plus,
                 contentDescription = null,

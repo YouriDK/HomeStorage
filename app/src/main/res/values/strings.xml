@@ -41,6 +41,16 @@
     <string name="explorer_sort_date">Date</string>
     <string name="explorer_sort_size">Size</string>
     <string name="explorer_new_folder">New folder</string>
+    <string name="explorer_add">Add</string>
+    <string name="explorer_upload_photos">Upload photos</string>
+    <string name="explorer_upload_folder">Upload folder</string>
+    <string name="upload_progress">Uploading %1$s (%2$d of %3$d)</string>
+    <plurals name="upload_done">
+        <item quantity="one">%1$d file uploaded</item>
+        <item quantity="other">%1$d files uploaded</item>
+    </plurals>
+    <string name="upload_failed">%1$d failed</string>
+    <string name="upload_skipped_large">%1$d over 200 MB skipped</string>
     <plurals name="explorer_selected">
         <item quantity="one">%1$d selected</item>
         <item quantity="other">%1$d selected</item>
