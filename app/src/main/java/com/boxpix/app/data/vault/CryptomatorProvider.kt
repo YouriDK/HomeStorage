@@ -150,6 +150,128 @@ class CryptomatorProvider(
         return inner.upload(PathCodec.encode(parent.physicalDisplay), encrypted, ciphertext)
     }
 
+    /**
+     * Renames in place. Works for files and folder nodes alike: a folder's
+     * physical tree is keyed by its dirId, which a rename never changes —
+     * only the encrypted node name (whose associated data is the PARENT's
+     * dirId, unchanged too) is replaced.
+     */
+    override suspend fun rename(pathB64: String, newName: String): FbxResult<StorageEntry> {
+        val clear = clearPath(pathB64)
+        val parentPath = clear.substringBeforeLast('/').ifEmpty { "/" }
+        val name = clear.substringAfterLast('/')
+        val parent = when (val r = resolveDir(parentPath)) {
+            is FbxResult.Ok -> r.value
+            is FbxResult.Err -> return r
+        }
+        val oldEnc = encryptName(name, parent.dirId)
+        val newEnc = encryptName(newName, parent.dirId)
+        val renamed = inner.rename(PathCodec.encode("${parent.physicalDisplay}/$oldEnc"), newEnc)
+        if (renamed is FbxResult.Err) return renamed
+
+        // A renamed folder shifts the clear paths of its whole subtree.
+        cacheMutex.withLock {
+            dirCache.keys.removeAll { it == clear || it.startsWith("$clear/") }
+        }
+        val display = if (parentPath == "/") "/$newName" else "$parentPath/$newName"
+        // Freebox's rename result is rebuilt with isDirectory=false (v16
+        // lesson); good enough — every rename caller reloads its listing.
+        val wasDirectory = (renamed as FbxResult.Ok).value.isDirectory
+        return FbxResult.Ok(
+            StorageEntry(
+                pathB64 = PathCodec.encode(display),
+                displayPath = display,
+                name = newName,
+                isDirectory = wasDirectory,
+                sizeBytes = renamed.value.sizeBytes,
+                modifiedEpochSeconds = renamed.value.modifiedEpochSeconds,
+                mimeType = if (wasDirectory) null else MediaTypes.mimeTypeFor(newName),
+                hidden = false,
+            ),
+        )
+    }
+
+    /**
+     * Moves entries to [destParentB64], both inside the vault. The encrypted
+     * name is bound to the parent's dirId (SIV associated data), so a move is
+     * a rename to the name encrypted for the DESTINATION, then a physical
+     * move. Conflicts map 1:1: the same clear name in the destination yields
+     * the same encrypted name, which the inner provider already refuses.
+     */
+    override suspend fun move(pathsB64: List<String>, destParentB64: String): FbxResult<Unit> {
+        val destClear = clearPath(destParentB64)
+        val dest = when (val r = resolveDir(destClear)) {
+            is FbxResult.Ok -> r.value
+            is FbxResult.Err -> return r
+        }
+        for (pathB64 in pathsB64) {
+            val clear = clearPath(pathB64)
+            val parentPath = clear.substringBeforeLast('/').ifEmpty { "/" }
+            val name = clear.substringAfterLast('/')
+            val parent = when (val r = resolveDir(parentPath)) {
+                is FbxResult.Ok -> r.value
+                is FbxResult.Err -> return r
+            }
+            val sourceEnc = encryptName(name, parent.dirId)
+            val destEnc = encryptName(name, dest.dirId)
+            val sourcePhysical = "${parent.physicalDisplay}/$sourceEnc"
+            val renamed = inner.rename(PathCodec.encode(sourcePhysical), destEnc)
+            if (renamed is FbxResult.Err) return renamed
+            val staged = "${parent.physicalDisplay}/$destEnc"
+            val moved = inner.move(listOf(PathCodec.encode(staged)), PathCodec.encode(dest.physicalDisplay))
+            if (moved is FbxResult.Err) {
+                inner.rename(PathCodec.encode(staged), sourceEnc) // best-effort rollback
+                return moved
+            }
+            cacheMutex.withLock {
+                dirCache.keys.removeAll { it == clear || it.startsWith("$clear/") }
+            }
+        }
+        return FbxResult.Ok(Unit)
+    }
+
+    /**
+     * Permanent deletion. For folders, every descendant folder's physical dir
+     * is collected by listing BEFORE the node is removed — nothing else knows
+     * where the hashed dirs live.
+     */
+    override suspend fun delete(pathsB64: List<String>): FbxResult<Unit> {
+        for (pathB64 in pathsB64) {
+            val clear = clearPath(pathB64)
+            val parentPath = clear.substringBeforeLast('/').ifEmpty { "/" }
+            val name = clear.substringAfterLast('/')
+            val parent = when (val r = resolveDir(parentPath)) {
+                is FbxResult.Ok -> r.value
+                is FbxResult.Err -> return r
+            }
+            val nodePhysical = "${parent.physicalDisplay}/${encryptName(name, parent.dirId)}"
+            val physicalDirs = ArrayList<String>()
+            if (resolveDir(clear) is FbxResult.Ok && isDirectoryNode(clear)) {
+                collectPhysicalDirs(clear, physicalDirs)
+            }
+            val targets = (listOf(nodePhysical) + physicalDirs).map(PathCodec::encode)
+            val deleted = inner.delete(targets)
+            if (deleted is FbxResult.Err) return deleted
+            cacheMutex.withLock {
+                dirCache.keys.removeAll { it == clear || it.startsWith("$clear/") }
+            }
+        }
+        return FbxResult.Ok(Unit)
+    }
+
+    private suspend fun isDirectoryNode(clear: String): Boolean {
+        val parentPath = clear.substringBeforeLast('/').ifEmpty { "/" }
+        return (list(PathCodec.encode(parentPath)) as? FbxResult.Ok)
+            ?.value?.any { it.displayPath == clear && it.isDirectory } == true
+    }
+
+    private suspend fun collectPhysicalDirs(clearDir: String, into: MutableList<String>) {
+        val resolved = (resolveDir(clearDir) as? FbxResult.Ok)?.value ?: return
+        into += resolved.physicalDisplay
+        val children = (list(PathCodec.encode(clearDir)) as? FbxResult.Ok)?.value.orEmpty()
+        children.filter { it.isDirectory }.forEach { collectPhysicalDirs(it.displayPath, into) }
+    }
+
     /** Drops every cached directory resolution; called on lock and after mutations. */
     suspend fun invalidateResolutionCache() {
         cacheMutex.withLock { dirCache.clear() }

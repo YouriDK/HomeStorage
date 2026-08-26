@@ -26,6 +26,18 @@ data class VaultIndexEntry(
 data class VaultIndexFile(
     val version: Int = 1,
     val entries: List<VaultIndexEntry> = emptyList(),
+    /** In-vault trash state (SPEC M8): Room's trash_items never sees the vault. */
+    val trash: List<VaultTrashRecord> = emptyList(),
+)
+
+@Serializable
+data class VaultTrashRecord(
+    val originalPath: String,
+    val trashPath: String,
+    val name: String,
+    val isDirectory: Boolean,
+    val sizeBytes: Long,
+    val trashedAtEpochSeconds: Long,
 )
 
 @Serializable

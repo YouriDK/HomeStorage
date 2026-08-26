@@ -253,10 +253,25 @@ class ExplorerViewModel @Inject constructor(
 
     /** Batch metadata (V1 feedback): tags + capture date + place on every selected media. */
     fun applyMetadataToSelection(tagIds: Set<Long>, takenAtEpochSeconds: Long?, location: String?) {
-        val medias = selectedEntries().filterNot { it.isDirectory }.map { it.toMediaRef() }
+        val medias = selectedEntries().filterNot { it.isDirectory }
         if (medias.isEmpty()) return
         viewModelScope.launch {
-            metadataRepository.applyToSelection(medias, tagIds, takenAtEpochSeconds, location)
+            if (_state.value.inVault) {
+                val names = vaultTags.value.filter { it.id in tagIds }.map { it.name }.toSet()
+                vaultMeta.applyMetadata(
+                    medias.mapNotNull { vaultRelative(it.displayPath) },
+                    names,
+                    takenAtEpochSeconds,
+                    location,
+                )
+            } else {
+                metadataRepository.applyToSelection(
+                    medias.map { it.toMediaRef() },
+                    tagIds,
+                    takenAtEpochSeconds,
+                    location,
+                )
+            }
             clearSelection()
         }
     }
@@ -435,7 +450,19 @@ class ExplorerViewModel @Inject constructor(
         if (entries.isEmpty()) return
         if (guardViolation(entries)) return
         viewModelScope.launch {
-            when (val trashed = trashRepository.trash(entries)) {
+            // Vault items go to the vault's INTERNAL trash (never Room's).
+            val trashed = if (_state.value.inVault) {
+                vaultMeta.trashItems(
+                    entries.mapNotNull { entry ->
+                        vaultRelative(entry.displayPath)?.let {
+                            VaultMetaRepository.TrashRequest(it, entry.isDirectory, entry.sizeBytes)
+                        }
+                    },
+                )
+            } else {
+                trashRepository.trash(entries)
+            }
+            when (trashed) {
                 is FbxResult.Ok -> {
                     clearSelection()
                     load(initial = false)
@@ -473,7 +500,13 @@ class ExplorerViewModel @Inject constructor(
     // Move sheet
 
     fun openMoveSheet() {
-        val root = _state.value.root ?: return
+        // In-vault moves browse the vault only (cross-boundary is out of V1);
+        // outside, the sheet starts at the disk root as always.
+        val root = if (_state.value.inVault) {
+            _state.value.stack.firstOrNull { VaultPaths.isVaultPath(it.displayPath) }
+        } else {
+            _state.value.root
+        } ?: return
         _state.update { it.copy(move = MoveState(visible = true, stack = listOf(root))) }
         browseMoveTarget()
     }

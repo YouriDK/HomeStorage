@@ -19,11 +19,15 @@ import com.boxpix.app.data.storage.StorageProvider
  * so mounting the vault here adds no leak path — the guards on Room and the
  * clear mirrors stay where the writes happen.
  *
- * Vault mutations arrive with the M8 write lot; until then they refuse cleanly.
+ * Vault mutations are bounded by V1 scope: uploads cap at 200 MB (whole-file
+ * RAM encryption, no streaming) and moves across the vault boundary refuse —
+ * both with typed errors the UI turns into clear messages.
  */
 class VaultRoutingProvider(
     private val disk: StorageProvider,
     private val session: VaultSession,
+    /** Fired after any successful vault mutation, so the in-vault index catches up. */
+    private val onVaultMutated: () -> Unit = {},
 ) : StorageProvider {
 
     override val capabilities: StorageCapabilities get() = disk.capabilities
@@ -50,32 +54,71 @@ class VaultRoutingProvider(
         }
 
     override suspend fun mkdir(parentB64: String, name: String): FbxResult<StorageEntry> =
-        when (route(parentB64)) {
+        when (val route = route(parentB64)) {
             Route.Disk -> disk.mkdir(parentB64, name)
-            else -> unsupportedInVault()
+            is Route.Refused -> FbxResult.Err(route.error)
+            is Route.Vault -> route.provider.mkdir(route.relativeB64, name)
+                .map { it.mounted(route.mount) }
+                .alsoNotifyOnSuccess()
         }
 
     override suspend fun rename(pathB64: String, newName: String): FbxResult<StorageEntry> =
-        when (route(pathB64)) {
+        when (val route = route(pathB64)) {
             Route.Disk -> disk.rename(pathB64, newName)
-            else -> unsupportedInVault()
+            is Route.Refused -> FbxResult.Err(route.error)
+            is Route.Vault -> route.provider.rename(route.relativeB64, newName)
+                .map { it.mounted(route.mount) }
+                .alsoNotifyOnSuccess()
         }
 
-    override suspend fun move(pathsB64: List<String>, destParentB64: String): FbxResult<Unit> =
-        if ((pathsB64 + destParentB64).all { route(it) == Route.Disk }) {
-            disk.move(pathsB64, destParentB64)
-        } else {
-            unsupportedInVault()
+    override suspend fun move(pathsB64: List<String>, destParentB64: String): FbxResult<Unit> {
+        val routes = (pathsB64 + destParentB64).map { route(it) }
+        routes.filterIsInstance<Route.Refused>().firstOrNull()?.let { return FbxResult.Err(it.error) }
+        val vaultRoutes = routes.filterIsInstance<Route.Vault>()
+        return when {
+            vaultRoutes.isEmpty() -> disk.move(pathsB64, destParentB64)
+            // Moving across the vault boundary means silently decrypting or
+            // encrypting whole files — explicitly out of V1 scope.
+            vaultRoutes.size != routes.size ->
+                FbxResult.Err(FreeboxError.Api(ERROR_VAULT_CROSS_BOUNDARY))
+            else -> {
+                val dest = vaultRoutes.last()
+                dest.provider.move(vaultRoutes.dropLast(1).map { it.relativeB64 }, dest.relativeB64)
+                    .alsoNotifyOnSuccess()
+            }
         }
+    }
 
-    override suspend fun delete(pathsB64: List<String>): FbxResult<Unit> =
-        if (pathsB64.all { route(it) == Route.Disk }) disk.delete(pathsB64) else unsupportedInVault()
+    override suspend fun delete(pathsB64: List<String>): FbxResult<Unit> {
+        val routes = pathsB64.map { route(it) }
+        routes.filterIsInstance<Route.Refused>().firstOrNull()?.let { return FbxResult.Err(it.error) }
+        val vaultRoutes = routes.filterIsInstance<Route.Vault>()
+        return when {
+            vaultRoutes.isEmpty() -> disk.delete(pathsB64)
+            vaultRoutes.size != routes.size ->
+                FbxResult.Err(FreeboxError.Api(ERROR_VAULT_CROSS_BOUNDARY))
+            else -> vaultRoutes.first().provider.delete(vaultRoutes.map { it.relativeB64 })
+                .alsoNotifyOnSuccess()
+        }
+    }
 
     override suspend fun upload(parentB64: String, name: String, bytes: ByteArray): FbxResult<Unit> =
-        when (route(parentB64)) {
+        when (val route = route(parentB64)) {
             Route.Disk -> disk.upload(parentB64, name, bytes)
-            else -> unsupportedInVault()
+            is Route.Refused -> FbxResult.Err(route.error)
+            is Route.Vault ->
+                if (bytes.size > MAX_VAULT_UPLOAD_BYTES) {
+                    // No upload streaming in V1: whole-file RAM encryption only.
+                    FbxResult.Err(FreeboxError.Api(ERROR_VAULT_UPLOAD_TOO_LARGE))
+                } else {
+                    route.provider.upload(route.relativeB64, name, bytes).alsoNotifyOnSuccess()
+                }
         }
+
+    private fun <T> FbxResult<T>.alsoNotifyOnSuccess(): FbxResult<T> {
+        if (this is FbxResult.Ok) onVaultMutated()
+        return this
+    }
 
     private fun route(pathB64: String?): Route {
         val display = pathB64?.let { runCatching { PathCodec.decode(it) }.getOrNull() }
@@ -94,10 +137,10 @@ class VaultRoutingProvider(
         return copy(pathB64 = PathCodec.encode(display), displayPath = display)
     }
 
-    private fun <T> unsupportedInVault(): FbxResult<T> =
-        FbxResult.Err(FreeboxError.Api(StorageProvider.ERROR_NOT_SUPPORTED))
-
     companion object {
         const val ERROR_VAULT_LOCKED = "vault_locked"
+        const val ERROR_VAULT_CROSS_BOUNDARY = "vault_cross_boundary"
+        const val ERROR_VAULT_UPLOAD_TOO_LARGE = "vault_upload_too_large"
+        const val MAX_VAULT_UPLOAD_BYTES = 200 * 1024 * 1024
     }
 }

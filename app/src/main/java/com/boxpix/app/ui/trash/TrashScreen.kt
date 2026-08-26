@@ -40,6 +40,7 @@ fun TrashScreen(
     viewModel: TrashViewModel = hiltViewModel(),
 ) {
     val items by viewModel.items.collectAsStateWithLifecycle()
+    val vaultItems by viewModel.vaultItems.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
     val colors = boxpixColors
 
@@ -98,7 +99,7 @@ fun TrashScreen(
             )
         }
 
-        if (items.isEmpty()) {
+        if (items.isEmpty() && vaultItems.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(
                     text = stringResource(R.string.trash_empty),
@@ -116,7 +117,86 @@ fun TrashScreen(
                     )
                     HairlineDivider()
                 }
+                if (vaultItems.isNotEmpty()) {
+                    items(1, key = { "vault-trash-header" }) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 18.dp)
+                                .padding(top = 14.dp, bottom = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(
+                                Lucide.Lock,
+                                contentDescription = null,
+                                tint = colors.dim,
+                                modifier = Modifier.size(13.dp),
+                            )
+                            Spacer(Modifier.size(6.dp))
+                            Text(
+                                text = stringResource(R.string.trash_vault_section),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = colors.dim,
+                            )
+                        }
+                    }
+                    items(vaultItems.size, key = { "vault:" + vaultItems[it].trashPath }) { index ->
+                        val record = vaultItems[index]
+                        VaultTrashRow(
+                            name = record.name,
+                            detail = record.originalPath.substringBeforeLast('/').ifEmpty { "/" } +
+                                " · " + formatDate(record.trashedAtEpochSeconds),
+                            onRestore = { viewModel.restoreVaultItem(record) },
+                            onPurge = { viewModel.purgeVaultItem(record) },
+                        )
+                        HairlineDivider()
+                    }
+                }
             }
+        }
+    }
+}
+
+@Composable
+private fun VaultTrashRow(
+    name: String,
+    detail: String,
+    onRestore: () -> Unit,
+    onPurge: () -> Unit,
+) {
+    val colors = boxpixColors
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 18.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = name,
+                style = MaterialTheme.typography.bodyMedium,
+                color = colors.text,
+            )
+            Text(
+                text = detail,
+                style = MaterialTheme.typography.labelMedium,
+                color = colors.dim,
+            )
+        }
+        TextButton(onClick = onRestore) {
+            Text(
+                text = stringResource(R.string.trash_restore),
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.accent,
+            )
+        }
+        IconButton(onClick = onPurge) {
+            Icon(
+                Lucide.Trash,
+                contentDescription = stringResource(R.string.trash_delete_forever),
+                tint = colors.dim,
+                modifier = Modifier.size(18.dp),
+            )
         }
     }
 }

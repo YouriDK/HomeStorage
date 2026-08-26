@@ -16,12 +16,13 @@ fun FreeboxError.message(): String = when (this) {
     // so the banner has to be its own diagnostic.
     is FreeboxError.Network -> stringResource(R.string.error_network) + debugDetail()
     is FreeboxError.Http -> stringResource(R.string.error_api, "HTTP $status")
-    is FreeboxError.Api ->
-        if (code == "protected_folder") {
-            stringResource(R.string.error_protected)
-        } else {
-            stringResource(R.string.error_api, code) + debugDetail()
-        }
+    is FreeboxError.Api -> when (code) {
+        "protected_folder" -> stringResource(R.string.error_protected)
+        "vault_locked" -> stringResource(R.string.error_vault_locked)
+        "vault_upload_too_large" -> stringResource(R.string.error_vault_upload_too_large)
+        "vault_cross_boundary" -> stringResource(R.string.error_vault_cross_boundary)
+        else -> stringResource(R.string.error_api, code) + debugDetail()
+    }
 }
 
 private fun FreeboxError.debugDetail(): String {

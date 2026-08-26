@@ -204,7 +204,16 @@ class ViewerViewModel @Inject constructor(
 
     fun trash(item: MediaRef) {
         viewModelScope.launch {
-            when (val trashed = trashRepository.trash(listOf(item.toStorageEntry()))) {
+            val relative = vaultRelative(item.displayPath)
+            val trashed = if (relative != null) {
+                // Vault media go to the in-vault trash, never Room's.
+                vaultMeta.trashItems(
+                    listOf(VaultMetaRepository.TrashRequest(relative, false, item.sizeBytes)),
+                )
+            } else {
+                trashRepository.trash(listOf(item.toStorageEntry()))
+            }
+            when (trashed) {
                 is FbxResult.Ok -> removeFromList(item)
                 is FbxResult.Err -> _state.update { it.copy(error = trashed.error) }
             }

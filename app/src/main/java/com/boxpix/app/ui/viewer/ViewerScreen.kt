@@ -618,12 +618,10 @@ private fun ViewerTopBar(
                 )
             }
             DropdownMenu(expanded = overflowOpen, onDismissRequest = onDismissOverflow) {
-                if (!inVault) {
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.viewer_menu_rename)) },
-                        onClick = onRename,
-                    )
-                }
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.viewer_menu_rename)) },
+                    onClick = onRename,
+                )
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.viewer_menu_copy_path)) },
                     onClick = onCopyPath,
@@ -681,8 +679,8 @@ private fun ViewerActionBar(
         horizontalArrangement = Arrangement.spacedBy(4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Tags and favourites live in the in-vault meta for vault media; the
-        // remaining actions stay Room/mirror/device-bound, so vault-hidden.
+        // Tags, favourites and trash are vault-native for vault media; move
+        // (sheet browses the disk) and share (clear cache on device) stay out.
         ViewerAction(Lucide.Tag, stringResource(R.string.viewer_action_tag), onClick = onTag)
         ViewerAction(
             icon = if (isFavorite) Lucide.HeartFilled else Lucide.Heart,
@@ -692,7 +690,9 @@ private fun ViewerActionBar(
         )
         if (!inVault) {
             ViewerAction(Lucide.FolderInput, stringResource(R.string.viewer_action_move), onClick = onMove)
-            ViewerAction(Lucide.Trash2, stringResource(R.string.viewer_action_trash), onClick = onTrash)
+        }
+        ViewerAction(Lucide.Trash2, stringResource(R.string.viewer_action_trash), onClick = onTrash)
+        if (!inVault) {
             ViewerAction(Lucide.Share2, stringResource(R.string.viewer_action_share), onClick = onShare)
         }
         ViewerAction(Lucide.Info, stringResource(R.string.viewer_action_info), onClick = onInfo)

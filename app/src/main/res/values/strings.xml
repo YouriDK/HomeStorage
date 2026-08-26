@@ -323,6 +323,10 @@
     <string name="vault_biometrics_invalidated">Biometrics changed — enter your passphrase to re-enable them.</string>
     <string name="vault_banner_unlocked">Vault unlocked</string>
     <string name="vault_lock_action">Lock vault</string>
+    <string name="trash_vault_section">Vault trash</string>
+    <string name="error_vault_locked">The vault is locked.</string>
+    <string name="error_vault_upload_too_large">Files over 200 MB can\'t be added to the vault yet.</string>
+    <string name="error_vault_cross_boundary">Moving files in or out of the vault isn\'t supported yet.</string>
 
     <!-- Trash screen -->
     <string name="trash_title">Trash</string>

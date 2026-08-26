@@ -83,20 +83,22 @@ class VaultRoutingProviderTest {
     }
 
     @Test
-    fun `vault mutations refuse cleanly until the write lot`() = runTest(timeout = 60.seconds) {
-        val env = unlockedEnv()
+    fun `locked vault refuses every mutation`() = runTest(timeout = 60.seconds) {
+        val env = Env()
+        VaultFixture.install(env.fake)
+        env.session.probe() // Locked
         val inVault = PathCodec.encode("${env.mount}/photo.jpg")
         val mountB64 = PathCodec.encode(env.mount)
 
         listOf(
-            env.routing.mkdir(mountB64, "New"),
-            env.routing.rename(inVault, "renamed.jpg"),
-            env.routing.upload(mountB64, "x.jpg", ByteArray(4)).map { },
-            env.routing.move(listOf(inVault), PathCodec.encode("/Photos")).map { },
-            env.routing.delete(listOf(inVault)).map { },
+            env.routing.mkdir(mountB64, "New").map { },
+            env.routing.rename(inVault, "renamed.jpg").map { },
+            env.routing.upload(mountB64, "x.jpg", ByteArray(4)),
+            env.routing.move(listOf(inVault), mountB64),
+            env.routing.delete(listOf(inVault)),
         ).forEach { result ->
             assertEquals(
-                StorageProvider.ERROR_NOT_SUPPORTED,
+                VaultRoutingProvider.ERROR_VAULT_LOCKED,
                 ((result as FbxResult.Err).error as FreeboxError.Api).code,
             )
         }

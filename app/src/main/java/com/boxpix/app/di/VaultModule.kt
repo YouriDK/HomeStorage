@@ -1,5 +1,6 @@
 package com.boxpix.app.di
 
+import com.boxpix.app.data.media.MediaProcessor
 import com.boxpix.app.data.storage.RootLocator
 import com.boxpix.app.data.storage.StorageProvider
 import com.boxpix.app.data.vault.AndroidVaultKeyStore
@@ -8,6 +9,7 @@ import com.boxpix.app.data.vault.VaultKeyStore
 import com.boxpix.app.data.vault.VaultMetaRepository
 import com.boxpix.app.data.vault.VaultRoutingProvider
 import com.boxpix.app.data.vault.VaultSession
+import com.boxpix.app.data.vault.VaultThumbnails
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
@@ -30,13 +32,24 @@ object VaultModule {
     /** What the whole app injects: the disk with the vault mounted under .vault. */
     @Provides
     @Singleton
-    fun storageProvider(@DiskStorage disk: StorageProvider, session: VaultSession): StorageProvider =
-        VaultRoutingProvider(disk, session)
+    fun storageProvider(
+        @DiskStorage disk: StorageProvider,
+        session: VaultSession,
+        meta: VaultMetaRepository,
+    ): StorageProvider = VaultRoutingProvider(disk, session, onVaultMutated = meta::onVaultMutated)
 
     @Provides
     @Singleton
-    fun vaultMetaRepository(session: VaultSession, scope: CoroutineScope): VaultMetaRepository =
-        VaultMetaRepository(session, scope)
+    fun vaultMetaRepository(session: VaultSession, scope: CoroutineScope, clock: Clock): VaultMetaRepository =
+        VaultMetaRepository(session, scope, clock)
+
+    @Provides
+    @Singleton
+    fun vaultThumbnails(
+        session: VaultSession,
+        meta: VaultMetaRepository,
+        processor: MediaProcessor,
+    ): VaultThumbnails = VaultThumbnails(session, meta, processor)
 
     @Provides
     @Singleton

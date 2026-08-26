@@ -9,6 +9,9 @@ import coil.fetch.SourceResult
 import coil.key.Keyer
 import coil.request.Options
 import com.boxpix.app.data.media.ThumbnailRepository
+import com.boxpix.app.data.vault.VaultPaths
+import com.boxpix.app.data.vault.VaultSession
+import com.boxpix.app.data.vault.VaultThumbnails
 import okio.Buffer
 import javax.inject.Inject
 
@@ -26,19 +29,35 @@ class ThumbKeyer @Inject constructor() : Keyer<ThumbRequest> {
         "thumb:${data.pathB64}:${data.mtime}"
 }
 
-/** Bridges Coil to the StorageProvider-backed thumbnail pipeline. */
+/**
+ * Bridges Coil to the StorageProvider-backed thumbnail pipeline. Vault media
+ * route to the vault's internal encrypted mirror instead.
+ *
+ * Decrypted vault thumbnails never reach Coil's DISK cache: a custom fetcher's
+ * SourceResult is decoded straight to a bitmap and only the bitmap enters the
+ * MEMORY cache (Coil 2 writes its disk cache inside the HTTP fetcher only),
+ * so a lock leaves no readable thumbnail behind on the device.
+ */
 class ThumbFetcher(
     private val request: ThumbRequest,
     private val thumbnails: ThumbnailRepository,
+    private val vaultSession: VaultSession,
+    private val vaultThumbnails: VaultThumbnails,
     private val options: Options,
 ) : Fetcher {
 
     override suspend fun fetch(): FetchResult? {
-        val bytes = thumbnails.thumbnail(
-            request.displayPath,
-            request.pathB64,
-            allowGenerate = !request.isVideo,
-        ) ?: return null
+        val bytes = if (VaultPaths.isVaultPath(request.displayPath)) {
+            vaultSession.mountDisplayPath
+                ?.let { VaultPaths.vaultRelative(request.displayPath, it) }
+                ?.let { vaultThumbnails.thumbnail(it, allowGenerate = !request.isVideo) }
+        } else {
+            thumbnails.thumbnail(
+                request.displayPath,
+                request.pathB64,
+                allowGenerate = !request.isVideo,
+            )
+        } ?: return null
         return SourceResult(
             source = ImageSource(Buffer().write(bytes), options.context),
             mimeType = "image/webp",
@@ -48,8 +67,10 @@ class ThumbFetcher(
 
     class Factory @Inject constructor(
         private val thumbnails: ThumbnailRepository,
+        private val vaultSession: VaultSession,
+        private val vaultThumbnails: VaultThumbnails,
     ) : Fetcher.Factory<ThumbRequest> {
         override fun create(data: ThumbRequest, options: Options, imageLoader: ImageLoader): Fetcher =
-            ThumbFetcher(data, thumbnails, options)
+            ThumbFetcher(data, thumbnails, vaultSession, vaultThumbnails, options)
     }
 }

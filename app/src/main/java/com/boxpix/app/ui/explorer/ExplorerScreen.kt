@@ -162,7 +162,7 @@ fun ExplorerScreen(
                 SortRow(
                     sort = state.sort,
                     onSortSelected = viewModel::setSort,
-                    newFolderEnabled = !state.offline && !state.inVault,
+                    newFolderEnabled = !state.offline,
                     onNewFolder = { showNewFolderDialog = true },
                 )
             }
@@ -217,9 +217,10 @@ fun ExplorerScreen(
     VaultUnlockSheet(vaultViewModel)
 
     if (showMetadataSheet) {
+        val vaultTagsForSheet by viewModel.vaultTags.collectAsStateWithLifecycle()
         com.boxpix.app.ui.common.MetadataSheet(
             selectionCount = state.selection.size,
-            tags = allTags.filterNot { it.isSystem },
+            tags = if (state.inVault) vaultTagsForSheet else allTags.filterNot { it.isSystem },
             onApply = { tagIds, takenAt, location ->
                 showMetadataSheet = false
                 viewModel.applyMetadataToSelection(tagIds, takenAt, location)
@@ -538,9 +539,9 @@ private fun SelectionBar(
             color = colors.text,
         )
         Spacer(Modifier.weight(1f))
-        // M8 lot 2: inside the vault, only selection mechanics — every action
-        // below routes through Room or the clear mirrors. Vault-native tags,
-        // trash and moves arrive with the M8 index and write lots.
+        // Inside the vault: rename/move/trash/tag/metadata are vault-native
+        // (in-vault trash and meta); protection, scan exclusion and device
+        // download stay outside — they are Room/mirror/device concepts.
         if (canProtect && !inVault) {
             IconButton(onClick = onToggleProtect, enabled = writeEnabled) {
                 Icon(
@@ -563,7 +564,7 @@ private fun SelectionBar(
                 )
             }
         }
-        if (canRename && !inVault) {
+        if (canRename) {
             IconButton(onClick = onRename, enabled = writeEnabled) {
                 Icon(
                     Lucide.Pencil,
@@ -573,7 +574,6 @@ private fun SelectionBar(
                 )
             }
         }
-        // Tagging works in the vault too — routed to the in-vault tags file.
         IconButton(onClick = onTag) {
             Icon(
                 Lucide.Tag,
@@ -582,16 +582,16 @@ private fun SelectionBar(
                 modifier = Modifier.size(22.dp),
             )
         }
+        // Room-first outside the vault; the in-vault index inside.
+        IconButton(onClick = onEditMetadata) {
+            Icon(
+                Lucide.SlidersHorizontal,
+                contentDescription = stringResource(R.string.explorer_action_metadata),
+                tint = colors.dim,
+                modifier = Modifier.size(22.dp),
+            )
+        }
         if (!inVault) {
-            // Room-first like tagging: works offline, the XMP queue drains later.
-            IconButton(onClick = onEditMetadata) {
-                Icon(
-                    Lucide.SlidersHorizontal,
-                    contentDescription = stringResource(R.string.explorer_action_metadata),
-                    tint = colors.dim,
-                    modifier = Modifier.size(22.dp),
-                )
-            }
             IconButton(onClick = onDownload) {
                 Icon(
                     Lucide.Download,
@@ -600,22 +600,22 @@ private fun SelectionBar(
                     modifier = Modifier.size(22.dp),
                 )
             }
-            IconButton(onClick = onMove, enabled = writeEnabled) {
-                Icon(
-                    Lucide.FolderInput,
-                    contentDescription = stringResource(R.string.explorer_action_move),
-                    tint = colors.dim,
-                    modifier = Modifier.size(22.dp),
-                )
-            }
-            IconButton(onClick = onTrash, enabled = writeEnabled) {
-                Icon(
-                    Lucide.Trash2,
-                    contentDescription = stringResource(R.string.explorer_action_trash),
-                    tint = colors.dim,
-                    modifier = Modifier.size(22.dp),
-                )
-            }
+        }
+        IconButton(onClick = onMove, enabled = writeEnabled) {
+            Icon(
+                Lucide.FolderInput,
+                contentDescription = stringResource(R.string.explorer_action_move),
+                tint = colors.dim,
+                modifier = Modifier.size(22.dp),
+            )
+        }
+        IconButton(onClick = onTrash, enabled = writeEnabled) {
+            Icon(
+                Lucide.Trash2,
+                contentDescription = stringResource(R.string.explorer_action_trash),
+                tint = colors.dim,
+                modifier = Modifier.size(22.dp),
+            )
         }
         IconButton(onClick = onSelectAll) {
             Icon(

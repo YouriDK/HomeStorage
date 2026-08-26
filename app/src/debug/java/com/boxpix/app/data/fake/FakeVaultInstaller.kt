@@ -44,14 +44,18 @@ object FakeVaultInstaller {
 
     private const val HOLIDAYS_DIR_ID = "aaaaaaaa-1111-2222-3333-bbbbbbbbbbbb"
 
-    /** Idempotent; failures are swallowed — a fake without a vault still works. */
+    /** Idempotent; failures only cost the vault — a fake without one still works. */
     suspend fun install(
         provider: StorageProvider,
         synthesizer: FakeImageSynthesizer?,
         diskRootDisplay: String = "/Photos",
     ) {
         runCatching { doInstall(provider, synthesizer, diskRootDisplay) }
+            .onSuccess { android.util.Log.i(TAG, "fake vault seeded at $diskRootDisplay/.vault") }
+            .onFailure { android.util.Log.w(TAG, "fake vault seeding failed", it) }
     }
+
+    private const val TAG = "BoxpixFakeVault"
 
     private suspend fun doInstall(
         provider: StorageProvider,
