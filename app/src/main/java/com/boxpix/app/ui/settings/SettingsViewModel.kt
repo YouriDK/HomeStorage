@@ -59,6 +59,8 @@ class SettingsViewModel @Inject constructor(
     private val workerStatusFile: WorkerStatusFile,
     private val scanExclusion: ScanExclusionRepository,
     private val vaultSession: com.boxpix.app.data.vault.VaultSession,
+    private val backupMirror: com.boxpix.app.data.backup.BackupMirror,
+    private val storageProvider: com.boxpix.app.data.storage.StorageProvider,
     @ApplicationContext private val context: Context,
 ) : ViewModel() {
 
@@ -174,6 +176,29 @@ class SettingsViewModel @Inject constructor(
     val exportUri: StateFlow<Uri?> = _exportUri.asStateFlow()
 
     fun setGridColumns(columns: Int) = launch { uiPrefs.setGridColumns(columns) }
+    // Backup mirror (weekly worker pass + manual runs)
+    val backupRoot = uiPrefs.backupRoot
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+    val lastBackupAt = uiPrefs.lastBackupAtEpochSeconds
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+    val backupRunning = backupMirror.running
+    val backupReport = backupMirror.lastReport
+
+    private val _backupDisks =
+        kotlinx.coroutines.flow.MutableStateFlow<List<com.boxpix.app.data.storage.StorageEntry>?>(null)
+    val backupDisks: kotlinx.coroutines.flow.StateFlow<List<com.boxpix.app.data.storage.StorageEntry>?> =
+        _backupDisks
+
+    fun loadBackupDisks() = launch {
+        _backupDisks.value = storageProvider.list(null, onlyFolders = true).getOrNull().orEmpty()
+    }
+
+    fun setBackupRoot(entry: com.boxpix.app.data.storage.StorageEntry) = launch {
+        uiPrefs.setBackupRoot(entry.pathB64, entry.displayPath)
+    }
+
+    fun backUpNow() = backupMirror.runAsync()
+
     fun setUseFake(useFake: Boolean) = launch {
         // Another tree entirely: an unlocked vault must not survive the switch.
         vaultSession.lock()

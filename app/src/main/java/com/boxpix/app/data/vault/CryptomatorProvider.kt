@@ -55,7 +55,11 @@ class CryptomatorProvider(
     private val cacheMutex = Mutex()
     private val dirCache = HashMap<String, ResolvedDir>()
 
-    override suspend fun list(pathB64: String?, onlyFolders: Boolean): FbxResult<List<StorageEntry>> {
+    override suspend fun list(
+        pathB64: String?,
+        onlyFolders: Boolean,
+        includeHidden: Boolean, // the vault's own dot entries stay internal
+    ): FbxResult<List<StorageEntry>> {
         val clearDir = clearPath(pathB64)
         val dir = when (val resolved = resolveDir(clearDir)) {
             is FbxResult.Ok -> resolved.value

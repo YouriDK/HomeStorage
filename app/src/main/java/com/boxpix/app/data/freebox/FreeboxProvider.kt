@@ -25,14 +25,18 @@ class FreeboxProvider @Inject constructor(
         canCreateAtRoot = false, // "/" is virtual: it lists the disks (access_denied otherwise)
     )
 
-    override suspend fun list(pathB64: String?, onlyFolders: Boolean): FbxResult<List<StorageEntry>> =
+    override suspend fun list(
+        pathB64: String?,
+        onlyFolders: Boolean,
+        includeHidden: Boolean,
+    ): FbxResult<List<StorageEntry>> =
         sessions.withSession { base, token ->
             api.ls(
                 base = base,
                 sessionToken = token,
                 pathB64 = pathB64 ?: PathCodec.ROOT,
                 onlyFolder = onlyFolders,
-                removeHidden = true,
+                removeHidden = !includeHidden,
             )
         }.map { entries -> entries.map(FileInfoDto::toStorageEntry) }
 
@@ -97,6 +101,19 @@ class FreeboxProvider @Inject constructor(
                 return@withSession FbxResult.Err(FreeboxError.Api(StorageProvider.ERROR_CONFLICT))
             }
             when (val started = api.mv(base, token, pathsB64, destParentB64)) {
+                is FbxResult.Ok -> awaitTask(base, token, started.value)
+                is FbxResult.Err -> started
+            }
+        }
+
+    override suspend fun copy(
+        pathsB64: List<String>,
+        destParentB64: String,
+        overwrite: Boolean,
+    ): FbxResult<Unit> =
+        sessions.withSession { base, token ->
+            val mode = if (overwrite) "overwrite" else "skip"
+            when (val started = api.cp(base, token, pathsB64, destParentB64, mode)) {
                 is FbxResult.Ok -> awaitTask(base, token, started.value)
                 is FbxResult.Err -> started
             }

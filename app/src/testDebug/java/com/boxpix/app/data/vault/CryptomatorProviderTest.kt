@@ -26,8 +26,8 @@ class CountingStorageProvider(private val inner: StorageProvider) : StorageProvi
 
     override val capabilities: StorageCapabilities get() = inner.capabilities
 
-    override suspend fun list(pathB64: String?, onlyFolders: Boolean) =
-        inner.list(pathB64, onlyFolders).also { lists.incrementAndGet() }
+    override suspend fun list(pathB64: String?, onlyFolders: Boolean, includeHidden: Boolean) =
+        inner.list(pathB64, onlyFolders, includeHidden).also { lists.incrementAndGet() }
 
     override suspend fun download(pathB64: String, range: LongRange?) =
         inner.download(pathB64, range).also {

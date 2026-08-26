@@ -317,6 +317,98 @@ fun SettingsScreen(
             }
             HairlineDivider()
 
+            GroupLabel(stringResource(R.string.settings_group_backup))
+            val backupRoot by viewModel.backupRoot.collectAsStateWithLifecycle()
+            val lastBackupAt by viewModel.lastBackupAt.collectAsStateWithLifecycle()
+            val backupRunning by viewModel.backupRunning.collectAsStateWithLifecycle()
+            val backupReport by viewModel.backupReport.collectAsStateWithLifecycle()
+            var showBackupPicker by remember { mutableStateOf(false) }
+            SettingRow(
+                name = stringResource(R.string.settings_backup_disk),
+                sub = backupRoot?.second ?: stringResource(R.string.settings_backup_disk_none),
+                onClick = {
+                    viewModel.loadBackupDisks()
+                    showBackupPicker = true
+                },
+            ) {
+                Icon(
+                    Lucide.ChevronRight,
+                    contentDescription = null,
+                    tint = colors.faint,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+            SettingRow(
+                name = stringResource(R.string.settings_backup_now),
+                sub = when {
+                    backupRunning -> stringResource(R.string.settings_backup_running)
+                    else -> buildString {
+                        append(
+                            stringResource(
+                                R.string.settings_backup_last,
+                                lastBackupAt?.let { formatDate(it) }
+                                    ?: stringResource(R.string.settings_never),
+                            ),
+                        )
+                        backupReport?.let {
+                            append(" · ")
+                            append(stringResource(R.string.settings_backup_report, it.copiedEntries + it.overwrittenFiles, it.failures))
+                        }
+                    }
+                },
+                onClick = if (backupRoot != null && !backupRunning) viewModel::backUpNow else null,
+            ) {
+                if (backupRunning) {
+                    androidx.compose.material3.CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        color = colors.accent,
+                        trackColor = colors.hairline,
+                        strokeWidth = 1.5.dp,
+                    )
+                }
+            }
+            HairlineDivider()
+
+            if (showBackupPicker) {
+                val disks by viewModel.backupDisks.collectAsStateWithLifecycle()
+                androidx.compose.material3.AlertDialog(
+                    onDismissRequest = { showBackupPicker = false },
+                    containerColor = colors.elevated,
+                    shape = RoundedCornerShape(14.dp),
+                    title = {
+                        Text(stringResource(R.string.settings_backup_picker_title), color = colors.text)
+                    },
+                    text = {
+                        Column {
+                            disks?.forEach { disk ->
+                                Text(
+                                    text = disk.displayPath,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = colors.text,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            showBackupPicker = false
+                                            viewModel.setBackupRoot(disk)
+                                        }
+                                        .padding(vertical = 12.dp),
+                                )
+                            } ?: Text(
+                                stringResource(R.string.settings_backup_loading),
+                                color = colors.dim,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                    },
+                    confirmButton = {},
+                    dismissButton = {
+                        androidx.compose.material3.TextButton(onClick = { showBackupPicker = false }) {
+                            Text(stringResource(R.string.dialog_cancel), color = colors.dim)
+                        }
+                    },
+                )
+            }
+
             GroupLabel(stringResource(R.string.settings_group_security))
             SettingRow(
                 name = stringResource(R.string.settings_app_lock),

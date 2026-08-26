@@ -23,8 +23,14 @@ class SwitchingStorageProvider(
 
     override val capabilities: StorageCapabilities get() = active.capabilities
 
-    override suspend fun list(pathB64: String?, onlyFolders: Boolean): FbxResult<List<StorageEntry>> =
-        active.list(pathB64, onlyFolders)
+    override suspend fun list(
+        pathB64: String?,
+        onlyFolders: Boolean,
+        includeHidden: Boolean,
+    ): FbxResult<List<StorageEntry>> = active.list(pathB64, onlyFolders, includeHidden)
+
+    override suspend fun copy(pathsB64: List<String>, destParentB64: String, overwrite: Boolean): FbxResult<Unit> =
+        active.copy(pathsB64, destParentB64, overwrite)
 
     override suspend fun download(pathB64: String, range: LongRange?): FbxResult<ByteArray> =
         active.download(pathB64, range)

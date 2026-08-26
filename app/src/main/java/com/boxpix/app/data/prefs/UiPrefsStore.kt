@@ -47,6 +47,35 @@ class UiPrefsStore @Inject constructor(
         context.uiPrefsDataStore.edit { it[sortKey(folderPathB64)] = order.name }
     }
 
+    /** Backup mirror (owner's request): destination root on the second disk. */
+    val backupRoot: Flow<Pair<String, String>?> = context.uiPrefsDataStore.data
+        .map { prefs ->
+            val b64 = prefs[KEY_BACKUP_ROOT_B64]
+            val display = prefs[KEY_BACKUP_ROOT_DISPLAY]
+            if (b64 != null && display != null) b64 to display else null
+        }
+        .distinctUntilChanged()
+
+    suspend fun setBackupRoot(pathB64: String?, displayPath: String?) {
+        context.uiPrefsDataStore.edit {
+            if (pathB64 == null || displayPath == null) {
+                it.remove(KEY_BACKUP_ROOT_B64)
+                it.remove(KEY_BACKUP_ROOT_DISPLAY)
+            } else {
+                it[KEY_BACKUP_ROOT_B64] = pathB64
+                it[KEY_BACKUP_ROOT_DISPLAY] = displayPath
+            }
+        }
+    }
+
+    val lastBackupAtEpochSeconds: Flow<Long?> = context.uiPrefsDataStore.data
+        .map { it[KEY_LAST_BACKUP_AT] }
+        .distinctUntilChanged()
+
+    suspend fun setLastBackupAt(epochSeconds: Long) {
+        context.uiPrefsDataStore.edit { it[KEY_LAST_BACKUP_AT] = epochSeconds }
+    }
+
     /**
      * XMP write-through master switch — OFF by default (owner's decision at M6):
      * tags live in Room + tags.json; no media file is rewritten until enabled.
@@ -137,6 +166,9 @@ class UiPrefsStore @Inject constructor(
         private val KEY_USE_FAKE = booleanPreferencesKey("use_fake_provider")
         private val KEY_DEVICE_ID = stringPreferencesKey("device_id")
         private val KEY_XMP_ENABLED = booleanPreferencesKey("xmp_write_enabled")
+        private val KEY_BACKUP_ROOT_B64 = stringPreferencesKey("backup_root_b64")
+        private val KEY_BACKUP_ROOT_DISPLAY = stringPreferencesKey("backup_root_display")
+        private val KEY_LAST_BACKUP_AT = androidx.datastore.preferences.core.longPreferencesKey("last_backup_at")
         private val KEY_THEME = stringPreferencesKey("theme_mode")
         private val KEY_ACCENT = stringPreferencesKey("accent_preset")
         private val KEY_APP_LOCK = booleanPreferencesKey("app_lock_enabled")

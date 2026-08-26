@@ -255,6 +255,15 @@
     <string name="settings_grid_columns_hint">Explorer albums · photo grids add one</string>
     <string name="settings_group_trash">Trash</string>
     <string name="settings_group_files">Files</string>
+    <string name="settings_group_backup">Backup</string>
+    <string name="settings_backup_disk">Backup destination</string>
+    <string name="settings_backup_disk_none">Not set — new files stay on one disk only</string>
+    <string name="settings_backup_now">Back up now</string>
+    <string name="settings_backup_running">Mirroring to the backup disk…</string>
+    <string name="settings_backup_last">Last backup %1$s</string>
+    <string name="settings_backup_report">%1$d copied · %2$d failed</string>
+    <string name="settings_backup_picker_title">Mirror the library to</string>
+    <string name="settings_backup_loading">Loading disks…</string>
     <string name="settings_trash_row">Trash</string>
     <string name="settings_trash_auto">Auto purge after 30 days</string>
     <string name="settings_group_connection">Connection</string>

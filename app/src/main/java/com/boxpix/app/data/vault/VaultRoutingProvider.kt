@@ -38,9 +38,13 @@ class VaultRoutingProvider(
         data class Refused(val error: FreeboxError) : Route
     }
 
-    override suspend fun list(pathB64: String?, onlyFolders: Boolean): FbxResult<List<StorageEntry>> =
+    override suspend fun list(
+        pathB64: String?,
+        onlyFolders: Boolean,
+        includeHidden: Boolean,
+    ): FbxResult<List<StorageEntry>> =
         when (val route = route(pathB64)) {
-            Route.Disk -> disk.list(pathB64, onlyFolders)
+            Route.Disk -> disk.list(pathB64, onlyFolders, includeHidden)
             is Route.Refused -> FbxResult.Err(route.error)
             is Route.Vault -> route.provider.list(route.relativeB64, onlyFolders)
                 .map { entries -> entries.map { it.mounted(route.mount) } }

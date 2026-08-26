@@ -203,6 +203,31 @@ class FreeboxApiClient @Inject constructor(
             }
         }
 
+    /**
+     * Starts an async server-side copy (the box moves the bytes itself, ideal
+     * for disk-to-disk backup); returns the task to poll via [fsTask].
+     * mode=skip: an existing destination file is never overwritten.
+     */
+    suspend fun cp(
+        base: String,
+        sessionToken: String,
+        filesB64: List<String>,
+        destB64: String,
+        mode: String = "skip",
+    ): FbxResult<FsTaskDto> =
+        envelope("$base/fs/cp/") { url ->
+            http.post(url) {
+                header(X_FBX_APP_AUTH, sessionToken)
+                contentType(ContentType.Application.Json)
+                setBody(
+                    json.encodeToString(
+                        FileOperationRequestDto.serializer(),
+                        FileOperationRequestDto(files = filesB64, dst = destB64, mode = mode),
+                    ),
+                )
+            }
+        }
+
     /** Starts an async permanent deletion; returns the task to poll via [fsTask]. */
     suspend fun rm(base: String, sessionToken: String, filesB64: List<String>): FbxResult<FsTaskDto> =
         envelope("$base/fs/rm/") { url ->

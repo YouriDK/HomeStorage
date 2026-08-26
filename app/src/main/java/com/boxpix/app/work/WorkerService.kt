@@ -41,6 +41,7 @@ class WorkerService : Service() {
     @Inject lateinit var reconciler: Reconciler
 
     @Inject lateinit var videoThumbs: VideoThumbProcessor
+    @Inject lateinit var backupMirror: com.boxpix.app.data.backup.BackupMirror
 
     @Inject lateinit var xmpProcessor: XmpQueueProcessor
 
@@ -92,6 +93,9 @@ class WorkerService : Service() {
                     telemetry.passDone(WorkerTelemetry.PASS_XMP)
                     trashRepository.purgeOlderThan()
                     telemetry.passDone(WorkerTelemetry.PASS_PURGE)
+                    // Weekly disk-to-disk mirror (owner's request): the box
+                    // copies server-side; additive only, .trash excluded.
+                    backupMirror.runIfDue()
                     cycles++
                     statusFile.write(cycles)
                 }

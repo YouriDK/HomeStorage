@@ -16,8 +16,16 @@ import com.boxpix.app.data.media.MediaTypes
 interface StorageProvider {
     val capabilities: StorageCapabilities
 
-    /** Lists a folder; a null path lists the filesystem root, which exposes the disks. */
-    suspend fun list(pathB64: String? = null, onlyFolders: Boolean = false): FbxResult<List<StorageEntry>>
+    /**
+     * Lists a folder; a null path lists the filesystem root, which exposes the
+     * disks. [includeHidden] is for the backup mirror ONLY: it surfaces the
+     * dot-entries (.vault, .thumbs, .meta) that every normal listing hides.
+     */
+    suspend fun list(
+        pathB64: String? = null,
+        onlyFolders: Boolean = false,
+        includeHidden: Boolean = false,
+    ): FbxResult<List<StorageEntry>>
 
     /** Full or partial (when [range] is set) read of a file's bytes. */
     suspend fun download(pathB64: String, range: LongRange? = null): FbxResult<ByteArray>
@@ -28,6 +36,16 @@ interface StorageProvider {
 
     /** Moves entries into [destParentB64], keeping their names. */
     suspend fun move(pathsB64: List<String>, destParentB64: String): FbxResult<Unit> = unsupported()
+
+    /**
+     * Copies entries into [destParentB64] — the backup mirror's primitive;
+     * server-side on the Freebox (fs/cp). Conflicts skip unless [overwrite].
+     */
+    suspend fun copy(
+        pathsB64: List<String>,
+        destParentB64: String,
+        overwrite: Boolean = false,
+    ): FbxResult<Unit> = unsupported()
 
     /** Permanent deletion — only the trash layer is allowed to call this. */
     suspend fun delete(pathsB64: List<String>): FbxResult<Unit> = unsupported()

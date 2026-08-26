@@ -45,14 +45,18 @@ class FakeStorageProvider(
         canCreateAtRoot = true, // the fake root plays the role of the disk root
     )
 
-    override suspend fun list(pathB64: String?, onlyFolders: Boolean): FbxResult<List<StorageEntry>> {
+    override suspend fun list(
+        pathB64: String?,
+        onlyFolders: Boolean,
+        includeHidden: Boolean,
+    ): FbxResult<List<StorageEntry>> {
         simulateLatency()
         return mutex.withLock {
             val path = displayPath(pathB64)
             val folder = resolveFolder(path)
                 ?: return@withLock err(StorageProvider.ERROR_NOT_FOUND)
             folder.children
-                .filterNot { it.name.startsWith(".") }
+                .filterNot { !includeHidden && it.name.startsWith(".") }
                 .filter { !onlyFolders || it is FolderNode }
                 .map { it.toEntry(path) }
                 .let { FbxResult.Ok(it) }
@@ -165,6 +169,41 @@ class FakeStorageProvider(
             }
             FbxResult.Ok(Unit)
         }
+    }
+
+    override suspend fun copy(
+        pathsB64: List<String>,
+        destParentB64: String,
+        overwrite: Boolean,
+    ): FbxResult<Unit> {
+        simulateLatency()
+        return mutex.withLock {
+            val dest = resolveFolder(displayPath(destParentB64))
+                ?: return@withLock err(StorageProvider.ERROR_NOT_FOUND)
+            pathsB64.forEach { encoded ->
+                val (_, node) = resolve(displayPath(encoded))
+                    ?: return@withLock err(StorageProvider.ERROR_NOT_FOUND)
+                val existing = dest.childByName(node.name)
+                if (existing != null && overwrite) dest.children.remove(existing)
+                if (existing == null || overwrite) dest.children += deepCopy(node)
+            }
+            FbxResult.Ok(Unit)
+        }
+    }
+
+    private fun deepCopy(node: FakeNode): FakeNode = when (node) {
+        is FolderNode -> FolderNode(node.name, mtime = node.mtime).also { copy ->
+            node.children.forEach { copy.children += deepCopy(it) }
+        }
+        is FileNode -> FileNode(
+            name = node.name,
+            mtime = node.mtime,
+            sizeBytes = node.sizeBytes,
+            takenAtEpochSeconds = node.takenAtEpochSeconds,
+            mimeType = node.mimeType,
+            content = node.content,
+            durationSeconds = node.durationSeconds,
+        )
     }
 
     override suspend fun delete(pathsB64: List<String>): FbxResult<Unit> {
