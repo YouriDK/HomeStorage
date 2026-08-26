@@ -305,8 +305,8 @@
 
     <!-- Vault (M8) -->
     <string name="vault_title">Vault</string>
-    <string name="vault_state_locked">Locked</string>
-    <string name="vault_state_unlocked">Unlocked</string>
+    <string name="vault_menu_open">Open vault</string>
+    <string name="error_no_vault_here">No vault found in this folder.</string>
     <string name="vault_unlock_title">Unlock vault</string>
     <string name="vault_unlock_subtitle">Enter the vault passphrase</string>
     <string name="vault_unlocking">Unlocking vault…</string>

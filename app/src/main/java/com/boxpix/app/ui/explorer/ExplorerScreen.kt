@@ -158,6 +158,9 @@ fun ExplorerScreen(
                     onOpenSortMode = {
                         if (viewModel.stageSortMode()) onOpenSortMode()
                     },
+                    onOpenVault = {
+                        viewModel.openVaultRequested(vaultLabel) { vaultViewModel.openSheet() }
+                    },
                 )
                 SortRow(
                     sort = state.sort,
@@ -168,7 +171,10 @@ fun ExplorerScreen(
             }
 
             if (state.vault == VaultState.Unlocked) {
-                VaultUnlockedBanner(onLock = vaultViewModel::lock)
+                VaultUnlockedBanner(
+                    onEnter = { viewModel.openVault(vaultLabel) },
+                    onLock = vaultViewModel::lock,
+                )
             }
 
             if (state.offline) {
@@ -198,18 +204,7 @@ fun ExplorerScreen(
 
                 state.folders.isEmpty() && state.media.isEmpty() -> EmptyFolderView()
 
-                else -> ContentGrid(
-                    state = state,
-                    viewModel = viewModel,
-                    onOpenViewer = onOpenViewer,
-                    onVaultTileTap = {
-                        if (state.vault == VaultState.Unlocked) {
-                            viewModel.openVault(vaultLabel)
-                        } else {
-                            vaultViewModel.openSheet()
-                        }
-                    },
-                )
+                else -> ContentGrid(state = state, viewModel = viewModel, onOpenViewer = onOpenViewer)
             }
         }
     }
@@ -335,8 +330,10 @@ private fun ExplorerTopBar(
     onOpenSettings: () -> Unit,
     onOpenSearch: () -> Unit,
     onOpenSortMode: () -> Unit,
+    onOpenVault: () -> Unit,
 ) {
     val colors = boxpixColors
+    var menuOpen by remember { mutableStateOf(false) }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -406,6 +403,33 @@ private fun ExplorerTopBar(
                 tint = colors.dim,
                 modifier = Modifier.size(22.dp),
             )
+        }
+        // Discreet by design: the vault entry lives in an overflow menu and
+        // nothing on screen ever hints that a vault exists until it is opened.
+        Box {
+            IconButton(onClick = { menuOpen = true }) {
+                Icon(
+                    Lucide.EllipsisVertical,
+                    contentDescription = null,
+                    tint = colors.dim,
+                    modifier = Modifier.size(22.dp),
+                )
+            }
+            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            stringResource(R.string.vault_menu_open),
+                            color = colors.text,
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    },
+                    onClick = {
+                        menuOpen = false
+                        onOpenVault()
+                    },
+                )
+            }
         }
     }
 }
@@ -657,7 +681,6 @@ private fun ContentGrid(
     state: ExplorerViewModel.UiState,
     viewModel: ExplorerViewModel,
     onOpenViewer: () -> Unit,
-    onVaultTileTap: () -> Unit,
 ) {
     LazyVerticalGrid(
         columns = GridCells.Fixed(state.photoColumns),
@@ -668,11 +691,6 @@ private fun ContentGrid(
         horizontalArrangement = Arrangement.spacedBy(2.dp),
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
-        if (state.depth == 0 && state.vault != VaultState.NoVault) {
-            items(1, key = { "vault-tile" }) {
-                VaultTile(unlocked = state.vault == VaultState.Unlocked, onTap = onVaultTileTap)
-            }
-        }
         items(state.albums.size, key = { "folder:" + state.albums[it].entry.pathB64 }) { index ->
             FolderTile(
                 album = state.albums[index],
@@ -888,60 +906,11 @@ private fun MediaCell(
 }
 
 /**
- * The vault's tile at the disk root — deliberately NOT a folder tile: flat
- * elevated surface, a lock badge, and an explicit locked/unlocked state.
+ * Discreet persistent reminder that decrypted content is reachable — only
+ * ever shown while unlocked. Tapping it walks (back) into the vault.
  */
 @Composable
-private fun VaultTile(unlocked: Boolean, onTap: () -> Unit) {
-    val colors = boxpixColors
-    Box(
-        modifier = Modifier
-            .aspectRatio(1f)
-            .background(colors.elevated)
-            .border(1.dp, if (unlocked) colors.accent else colors.hairlineStrong)
-            .clickable(onClick = onTap),
-    ) {
-        Column(
-            modifier = Modifier.align(Alignment.Center),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(34.dp)
-                    .background(
-                        if (unlocked) colors.accentSoft else colors.surface,
-                        CircleShape,
-                    ),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    if (unlocked) Lucide.LockOpen else Lucide.Lock,
-                    contentDescription = null,
-                    tint = if (unlocked) colors.accent else colors.dim,
-                    modifier = Modifier.size(17.dp),
-                )
-            }
-            Spacer(Modifier.height(7.dp))
-            Text(
-                text = stringResource(R.string.vault_title),
-                fontSize = 11.5.sp,
-                fontWeight = FontWeight.Medium,
-                color = colors.text,
-            )
-            Text(
-                text = stringResource(
-                    if (unlocked) R.string.vault_state_unlocked else R.string.vault_state_locked,
-                ),
-                fontSize = 9.sp,
-                color = if (unlocked) colors.accent else colors.dim,
-            )
-        }
-    }
-}
-
-/** Discreet persistent reminder that decrypted content is on screen. */
-@Composable
-private fun VaultUnlockedBanner(onLock: () -> Unit) {
+private fun VaultUnlockedBanner(onEnter: () -> Unit, onLock: () -> Unit) {
     val colors = boxpixColors
     Row(
         modifier = Modifier
@@ -962,7 +931,10 @@ private fun VaultUnlockedBanner(onLock: () -> Unit) {
             text = stringResource(R.string.vault_banner_unlocked),
             style = MaterialTheme.typography.bodySmall,
             color = colors.text,
-            modifier = Modifier.weight(1f),
+            modifier = Modifier
+                .weight(1f)
+                .clickable(onClick = onEnter)
+                .padding(vertical = 12.dp),
         )
         IconButton(onClick = onLock) {
             Icon(

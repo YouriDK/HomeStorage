@@ -158,16 +158,19 @@ class ExplorerViewModel @Inject constructor(
             val isFake = env.useFakeProvider.first()
             val root = resolveRoot(isFake)
             _state.update { it.copy(root = root, isFake = isFake) }
-            if (root != null) {
-                // Vault discovery runs when the disk is mounted (this screen's
-                // creation), never per navigation — the probe is one download.
-                vaultSession.probe()
-                load(initial = true)
-            }
+            if (root != null) load(initial = true)
         }
         viewModelScope.launch {
             vaultSession.state.collect { vault ->
                 _state.update { it.copy(vault = vault, vaultMount = vaultSession.mountDisplayPath) }
+                if (vault == VaultState.Unlocked) {
+                    // Discreet entry flow: the unlock this screen asked for
+                    // just succeeded — walk straight into the vault.
+                    pendingVaultLabel?.let { label ->
+                        pendingVaultLabel = null
+                        openVault(label)
+                    }
+                }
                 val insideVault = _state.value.stack.any { VaultPaths.isVaultPath(it.displayPath) }
                 if (vault != VaultState.Unlocked && insideVault) {
                     // Locked while browsing the vault: back to the disk, nothing
@@ -307,7 +310,29 @@ class ExplorerViewModel @Inject constructor(
 
     // Navigation
 
-    /** Enters the unlocked vault from its tile; [label] is the localized name. */
+    private var pendingVaultLabel: String? = null
+
+    /**
+     * Discreet vault entry (no tile, nothing advertised): probes the CURRENT
+     * folder for a `.vault` on demand. Found and unlocked -> walk in; found
+     * and locked -> [onLocked] (the unlock sheet), entry resumed on success;
+     * nothing there -> a plain inline message.
+     */
+    fun openVaultRequested(label: String, onLocked: () -> Unit) {
+        val current = _state.value.current ?: return
+        viewModelScope.launch {
+            when (vaultSession.probe(current.displayPath)) {
+                VaultState.Unlocked -> openVault(label)
+                VaultState.Locked -> {
+                    pendingVaultLabel = label
+                    onLocked()
+                }
+                else -> _state.update { it.copy(error = FreeboxError.Api(ERROR_NO_VAULT_HERE)) }
+            }
+        }
+    }
+
+    /** Enters the unlocked vault; [label] is the localized folder name. */
     fun openVault(label: String) {
         val mount = _state.value.vaultMount ?: return
         if (_state.value.vault != VaultState.Unlocked) return
@@ -346,13 +371,7 @@ class ExplorerViewModel @Inject constructor(
     }
 
     fun reload() {
-        viewModelScope.launch {
-            // Manual resync / return to the screen: one cheap re-probe when no
-            // vault is known yet (a vault created from the desktop shows up
-            // without restarting the app). Never re-probed once found.
-            if (_state.value.vault == VaultState.NoVault) vaultSession.probe()
-            load(initial = false)
-        }
+        viewModelScope.launch { load(initial = false) }
     }
 
     // Selection
@@ -714,6 +733,7 @@ class ExplorerViewModel @Inject constructor(
 
     companion object {
         const val ERROR_PROTECTED = "protected_folder"
+        const val ERROR_NO_VAULT_HERE = "no_vault_here"
         private const val FAKE_ROOT = "/Photos"
         private const val WAKE_HINT_DELAY_MS = 2_500L
     }

@@ -80,13 +80,15 @@ class VaultSession(
     }
 
     /**
-     * Looks for `<disk root>/.vault/vault.cryptomator`. Present -> Locked
-     * (unless already unlocked); absent or failing -> NoVault, fail-closed.
+     * Looks for `<base>/.vault/vault.cryptomator` — [baseDisplayPath] is the
+     * folder to probe (discreet on-demand entry: the user asks from wherever
+     * they are), or null for the configured root. Present -> Locked (unless
+     * already unlocked); absent or failing -> NoVault, fail-closed.
      */
-    suspend fun probe(): VaultState = transition.withLock {
+    suspend fun probe(baseDisplayPath: String? = null): VaultState = transition.withLock {
         if (_state.value == VaultState.Unlocked) return@withLock _state.value
-        val rootB64 = rootLocator.rootPathB64() ?: return@withLock settle(VaultState.NoVault)
-        val rootDisplay = runCatching { PathCodec.decode(rootB64) }.getOrNull()
+        val rootDisplay = baseDisplayPath
+            ?: rootLocator.rootPathB64()?.let { runCatching { PathCodec.decode(it) }.getOrNull() }
             ?: return@withLock settle(VaultState.NoVault)
         val vaultRoot = "${rootDisplay.trimEnd('/')}/${VaultFormat.VAULT_DIR}"
         val config = inner.download(PathCodec.encode("$vaultRoot/${VaultFormat.CONFIG_FILE}"))

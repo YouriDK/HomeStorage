@@ -19,6 +19,7 @@ fun FreeboxError.message(): String = when (this) {
     is FreeboxError.Api -> when (code) {
         "protected_folder" -> stringResource(R.string.error_protected)
         "vault_locked" -> stringResource(R.string.error_vault_locked)
+        "no_vault_here" -> stringResource(R.string.error_no_vault_here)
         "vault_upload_too_large" -> stringResource(R.string.error_vault_upload_too_large)
         "vault_cross_boundary" -> stringResource(R.string.error_vault_cross_boundary)
         else -> stringResource(R.string.error_api, code) + debugDetail()
