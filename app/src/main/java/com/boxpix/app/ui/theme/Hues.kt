@@ -12,4 +12,7 @@ object Hues {
 
     /** Favourites: the heart, in grids and the viewer. */
     val Favorite = Color(0xFFF06292)
+
+    /** Inline error accents (wrong vault passphrase, destructive hints). */
+    val Danger = Color(0xFFE57373)
 }

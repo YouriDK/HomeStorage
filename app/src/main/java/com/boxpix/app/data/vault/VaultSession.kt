@@ -59,10 +59,15 @@ class VaultSession(
     var provider: CryptomatorProvider? = null
         private set
 
+    /** Display path of `<disk root>/.vault`, known once a probe found a vault. */
+    @Volatile
+    var mountDisplayPath: String? = null
+        private set
+
     private val transition = Mutex()
     private var cryptor: Cryptor? = null
-    private var vaultRootDisplay: String? = null
     private var configJwt: String? = null
+    private var rawKeyForWrapping: ByteArray? = null
     private val csprng = SecureRandom()
 
     /**
@@ -78,7 +83,7 @@ class VaultSession(
         val config = inner.download(PathCodec.encode("$vaultRoot/${VaultFormat.CONFIG_FILE}"))
         when (config) {
             is FbxResult.Ok -> {
-                vaultRootDisplay = vaultRoot
+                mountDisplayPath = vaultRoot
                 configJwt = String(config.value, Charsets.UTF_8)
                 settle(VaultState.Locked)
             }
@@ -86,7 +91,43 @@ class VaultSession(
         }
     }
 
-    suspend fun unlock(passphrase: CharSequence): UnlockResult {
+    /**
+     * Passphrase unlock. With [retainRawKey], a copy of the raw masterkey stays
+     * available through [takeRawKeyForWrapping] so the caller can wrap it in a
+     * biometric-bound Keystore key — taken or not, it is wiped on [lock].
+     */
+    suspend fun unlock(passphrase: CharSequence, retainRawKey: Boolean = false): UnlockResult =
+        runUnlock { doUnlock(passphrase, retainRawKey) }
+
+    /**
+     * Unlock from a raw masterkey previously wrapped by the Keystore (biometric
+     * path): no masterkey file download, no scrypt. [rawKey] is wiped before
+     * returning, whatever the outcome.
+     */
+    suspend fun unlockWithRawKey(rawKey: ByteArray): UnlockResult = try {
+        runUnlock {
+            val jwt = configJwt ?: return@runUnlock UnlockResult.Failed(FreeboxError.Api(ERROR_NO_VAULT))
+            withContext(cryptoDispatcher) {
+                val masterkey = Masterkey(rawKey) // Masterkey copies, caller wipes
+                try {
+                    installCryptor(masterkey, jwt, retainRawKey = false)
+                } finally {
+                    masterkey.destroy()
+                }
+            }
+        }
+    } finally {
+        rawKey.fill(0)
+    }
+
+    /** One-shot: the retained raw key, ownership transferred to the caller. */
+    fun takeRawKeyForWrapping(): ByteArray? {
+        val key = rawKeyForWrapping
+        rawKeyForWrapping = null
+        return key
+    }
+
+    private suspend fun runUnlock(block: suspend () -> UnlockResult): UnlockResult {
         transition.withLock {
             when (_state.value) {
                 VaultState.Locked -> _state.value = VaultState.Unlocking
@@ -94,7 +135,7 @@ class VaultSession(
                 else -> return UnlockResult.Failed(FreeboxError.Api(ERROR_NO_VAULT))
             }
         }
-        val outcome = doUnlock(passphrase)
+        val outcome = block()
         transition.withLock {
             _state.value = if (outcome is UnlockResult.Success) VaultState.Unlocked else VaultState.Locked
         }
@@ -111,14 +152,16 @@ class VaultSession(
             provider = null
             cryptor?.destroy()
             cryptor = null
+            rawKeyForWrapping?.fill(0)
+            rawKeyForWrapping = null
             if (_state.value == VaultState.Unlocked || _state.value == VaultState.Unlocking) {
                 _state.value = VaultState.Locked
             }
         }
     }
 
-    private suspend fun doUnlock(passphrase: CharSequence): UnlockResult {
-        val vaultRoot = vaultRootDisplay
+    private suspend fun doUnlock(passphrase: CharSequence, retainRawKey: Boolean): UnlockResult {
+        val vaultRoot = mountDisplayPath
             ?: return UnlockResult.Failed(FreeboxError.Api(ERROR_NO_VAULT))
         val jwt = configJwt ?: return UnlockResult.Failed(FreeboxError.Api(ERROR_NO_VAULT))
         val keyBytes = when (
@@ -136,31 +179,43 @@ class VaultSession(
                 return@withContext UnlockResult.Failed(FreeboxError.Api(ERROR_MASTERKEY_UNREADABLE))
             }
             try {
-                when (val check = VaultConfig.verify(jwt, masterkey.encoded)) {
-                    is VaultConfig.Check.Supported -> {
-                        val newCryptor = CryptolibProvider
-                            .forScheme(CryptolibProvider.Scheme.SIV_GCM)
-                            .provide(masterkey.copy(), csprng)
-                        transition.withLock {
-                            cryptor = newCryptor
-                            provider = CryptomatorProvider(inner, newCryptor, vaultRoot, cryptoDispatcher)
-                        }
-                        UnlockResult.Success
-                    }
-                    is VaultConfig.Check.Unsupported -> UnlockResult.UnsupportedVault(check.reason)
-                    VaultConfig.Check.BadSignature -> UnlockResult.UnsupportedVault("config signature")
-                    VaultConfig.Check.Malformed -> UnlockResult.UnsupportedVault("config malformed")
-                }
+                installCryptor(masterkey, jwt, retainRawKey)
             } finally {
                 masterkey.destroy()
             }
         }
     }
 
+    /** Verifies the config against [masterkey] and swaps in the new cryptor. */
+    private suspend fun installCryptor(
+        masterkey: Masterkey,
+        jwt: String,
+        retainRawKey: Boolean,
+    ): UnlockResult {
+        val vaultRoot = mountDisplayPath
+            ?: return UnlockResult.Failed(FreeboxError.Api(ERROR_NO_VAULT))
+        return when (val check = VaultConfig.verify(jwt, masterkey.encoded)) {
+            is VaultConfig.Check.Supported -> {
+                val newCryptor = CryptolibProvider
+                    .forScheme(CryptolibProvider.Scheme.SIV_GCM)
+                    .provide(masterkey.copy(), csprng)
+                transition.withLock {
+                    cryptor = newCryptor
+                    provider = CryptomatorProvider(inner, newCryptor, vaultRoot, cryptoDispatcher)
+                    if (retainRawKey) rawKeyForWrapping = masterkey.encoded.copyOf()
+                }
+                UnlockResult.Success
+            }
+            is VaultConfig.Check.Unsupported -> UnlockResult.UnsupportedVault(check.reason)
+            VaultConfig.Check.BadSignature -> UnlockResult.UnsupportedVault("config signature")
+            VaultConfig.Check.Malformed -> UnlockResult.UnsupportedVault("config malformed")
+        }
+    }
+
     private fun settle(state: VaultState): VaultState {
         _state.value = state
         if (state == VaultState.NoVault) {
-            vaultRootDisplay = null
+            mountDisplayPath = null
             configJwt = null
         }
         return state

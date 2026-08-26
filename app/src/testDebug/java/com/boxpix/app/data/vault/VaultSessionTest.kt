@@ -80,6 +80,42 @@ class VaultSessionTest {
         }
 
     @Test
+    fun `raw key unlock works and a bad raw key fails closed`() = runTest(timeout = 60.seconds) {
+        val counting = CountingStorageProvider(instantFake())
+        VaultFixture.install(counting)
+        val session = session(counting)
+        session.probe()
+
+        assertEquals(UnlockResult.Success, session.unlockWithRawKey(VaultFixture.rawMasterkeyBytes))
+        assertEquals(VaultState.Unlocked, session.state.value)
+        session.lock()
+
+        val garbage = ByteArray(64) { 42 }
+        val bad = session.unlockWithRawKey(garbage)
+        assertTrue("expected failure, got $bad", bad !is UnlockResult.Success)
+        assertEquals(VaultState.Locked, session.state.value)
+        assertTrue("raw key must be wiped even on failure", garbage.all { it == 0.toByte() })
+    }
+
+    @Test
+    fun `raw key is retained only on request and wiped on lock`() = runTest(timeout = 60.seconds) {
+        val counting = CountingStorageProvider(instantFake())
+        VaultFixture.install(counting)
+        val session = session(counting)
+        session.probe()
+
+        assertEquals(UnlockResult.Success, session.unlock(VaultFixture.PASSPHRASE))
+        assertNull("not retained unless asked", session.takeRawKeyForWrapping())
+        session.lock()
+
+        assertEquals(UnlockResult.Success, session.unlock(VaultFixture.PASSPHRASE, retainRawKey = true))
+        val taken = session.takeRawKeyForWrapping()
+        assertTrue(taken != null && taken.contentEquals(VaultFixture.rawMasterkeyBytes))
+        assertNull("one-shot: gone after take", session.takeRawKeyForWrapping())
+        session.lock()
+    }
+
+    @Test
     fun `tampered vault config is rejected as unsupported`() = runTest(timeout = 60.seconds) {
         val counting = CountingStorageProvider(instantFake())
         VaultFixture.install(counting)

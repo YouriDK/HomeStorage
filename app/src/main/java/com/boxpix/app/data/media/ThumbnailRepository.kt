@@ -9,6 +9,7 @@ import com.boxpix.app.data.storage.StorageEnv
 import com.boxpix.app.data.storage.StorageFolders
 import com.boxpix.app.data.storage.StorageProvider
 import com.boxpix.app.data.trash.TrashRepository
+import com.boxpix.app.data.vault.VaultPaths
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -39,6 +40,9 @@ class ThumbnailRepository @Inject constructor(
      * nothing to show.
      */
     suspend fun thumbnail(displayPath: String, pathB64: String, allowGenerate: Boolean = true): ByteArray? {
+        // M8 invariant: vault media never produce a clear sidecar nor a Room row.
+        // Their thumbnails are served from the vault's internal mirror instead.
+        if (VaultPaths.isVaultPath(displayPath)) return null
         val sidecarPath = MirrorPaths.thumbPathFor(displayPath, provider.capabilities.canCreateAtRoot)
         val sidecar = provider.download(PathCodec.encode(sidecarPath)).getOrNull()
         if (sidecar != null && sidecar.isNotEmpty()) return sidecar
@@ -51,8 +55,9 @@ class ThumbnailRepository @Inject constructor(
      * also reads the EXIF capture date — one download serves both. Returns the
      * thumbnail bytes, or null when the file cannot be processed.
      */
-    suspend fun generate(displayPath: String, pathB64: String): ByteArray? =
-        inFlight.getOrPut(pathB64) { Mutex() }.withLock {
+    suspend fun generate(displayPath: String, pathB64: String): ByteArray? {
+        if (VaultPaths.isVaultPath(displayPath)) return null
+        return inFlight.getOrPut(pathB64) { Mutex() }.withLock {
             try {
                 val original = provider.download(pathB64).getOrNull() ?: return null
                 val providerId = currentProviderId()
@@ -76,6 +81,7 @@ class ThumbnailRepository @Inject constructor(
                 inFlight.remove(pathB64)
             }
         }
+    }
 
     private suspend fun currentProviderId(): String =
         if (env.useFakeProvider.first()) TrashRepository.PROVIDER_FAKE else TrashRepository.PROVIDER_FREEBOX

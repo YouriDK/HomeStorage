@@ -17,7 +17,8 @@ object StorageModule {
 
     @Provides
     @Singleton
-    fun storageProvider(real: FreeboxProvider): StorageProvider = real
+    @DiskStorage
+    fun diskProvider(real: FreeboxProvider): StorageProvider = real
 
     @Provides
     @Singleton

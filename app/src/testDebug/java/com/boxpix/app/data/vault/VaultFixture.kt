@@ -53,6 +53,13 @@ object VaultFixture {
 
     val configJwt: String by lazy { signedConfig(format = 8, cipherCombo = "SIV_GCM") }
 
+    /**
+     * Raw 64-byte masterkey, as the biometric wrap path would store it.
+     * Defensive copy: cryptolib's getEncoded() returns its INTERNAL array, and
+     * unlockWithRawKey wipes its input.
+     */
+    val rawMasterkeyBytes: ByteArray get() = masterkey.encoded.copyOf()
+
     /** A structurally valid config whose signature no masterkey produced. */
     val tamperedConfigJwt: String by lazy {
         val parts = configJwt.split('.').toMutableList()

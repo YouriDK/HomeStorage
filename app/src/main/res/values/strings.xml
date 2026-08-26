@@ -303,6 +303,27 @@
     <!-- Version name, version code, short git SHA -->
     <string name="settings_version">Boxpix %1$s · build %2$d · %3$s</string>
 
+    <!-- Vault (M8) -->
+    <string name="vault_title">Vault</string>
+    <string name="vault_state_locked">Locked</string>
+    <string name="vault_state_unlocked">Unlocked</string>
+    <string name="vault_unlock_title">Unlock vault</string>
+    <string name="vault_unlock_subtitle">Enter the vault passphrase</string>
+    <string name="vault_unlocking">Unlocking vault…</string>
+    <string name="vault_unlocked_toast">Vault unlocked</string>
+    <string name="vault_unlocked_subtitle">Opening…</string>
+    <string name="vault_passphrase_label">Passphrase</string>
+    <string name="vault_unlock_action">Unlock</string>
+    <string name="vault_wrong_passphrase">Wrong passphrase — try again.</string>
+    <string name="vault_unsupported">This vault format isn\'t supported.</string>
+    <string name="vault_unreachable">The vault can\'t be reached right now.</string>
+    <string name="vault_remember_biometrics">Unlock with biometrics next time</string>
+    <string name="vault_remember_prompt_title">Remember vault key</string>
+    <string name="vault_use_passphrase">Use passphrase</string>
+    <string name="vault_biometrics_invalidated">Biometrics changed — enter your passphrase to re-enable them.</string>
+    <string name="vault_banner_unlocked">Vault unlocked</string>
+    <string name="vault_lock_action">Lock vault</string>
+
     <!-- Trash screen -->
     <string name="trash_title">Trash</string>
     <string name="trash_empty">Trash is empty.</string>

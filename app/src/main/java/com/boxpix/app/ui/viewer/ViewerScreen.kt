@@ -74,6 +74,8 @@ import coil.compose.AsyncImage
 import coil.compose.SubcomposeAsyncImage
 import com.boxpix.app.R
 import com.boxpix.app.data.media.FileKind
+import com.boxpix.app.data.vault.VaultPaths
+import com.boxpix.app.data.vault.VaultState
 import com.boxpix.app.ui.common.FileKindPlaceholder
 import com.boxpix.app.ui.common.HdRequest
 import com.boxpix.app.ui.common.TagPickerSheet
@@ -95,6 +97,7 @@ import kotlinx.coroutines.delay
 fun ViewerScreen(
     onBack: () -> Unit,
     viewModel: ViewerViewModel = hiltViewModel(),
+    vaultViewModel: com.boxpix.app.ui.vault.VaultViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val shareUri by viewModel.shareUri.collectAsStateWithLifecycle()
@@ -119,6 +122,17 @@ fun ViewerScreen(
     val currentTagIds by remember(current.pathB64) { viewModel.tagIdsFlow(current.pathB64) }
         .collectAsStateWithLifecycle(initialValue = emptyList())
     val isFavorite = current.pathB64 in favoritePaths
+
+    // M8 lot 2: vault media are view-only — every hidden action would write to
+    // Room, to a clear mirror or to the device (share cache, MediaStore).
+    val inVault = VaultPaths.isVaultPath(current.displayPath)
+
+    // Locking the vault while viewing its content closes the viewer: nothing
+    // decrypted stays on screen.
+    val vaultState by vaultViewModel.vaultState.collectAsStateWithLifecycle()
+    LaunchedEffect(inVault, vaultState) {
+        if (inVault && vaultState != VaultState.Unlocked) onBack()
+    }
 
     LaunchedEffect(shareUri) {
         shareUri?.let { uri ->
@@ -157,6 +171,7 @@ fun ViewerScreen(
         ) {
             ViewerTopBar(
                 item = current,
+                inVault = inVault,
                 onBack = onBack,
                 onOverflow = { overflowOpen = true },
                 overflowOpen = overflowOpen,
@@ -220,6 +235,7 @@ fun ViewerScreen(
         ) {
             ViewerActionBar(
                 isFavorite = isFavorite,
+                inVault = inVault,
                 onTag = { showTagPicker = true },
                 onFavorite = { viewModel.toggleFavorite(current) },
                 onMove = viewModel::openMoveSheet,
@@ -541,6 +557,7 @@ private fun formatPlaybackTime(ms: Long): String {
 @Composable
 private fun ViewerTopBar(
     item: MediaRef,
+    inVault: Boolean,
     onBack: () -> Unit,
     onOverflow: () -> Unit,
     overflowOpen: Boolean,
@@ -600,21 +617,25 @@ private fun ViewerTopBar(
                 )
             }
             DropdownMenu(expanded = overflowOpen, onDismissRequest = onDismissOverflow) {
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.viewer_menu_rename)) },
-                    onClick = onRename,
-                )
+                if (!inVault) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.viewer_menu_rename)) },
+                        onClick = onRename,
+                    )
+                }
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.viewer_menu_copy_path)) },
                     onClick = onCopyPath,
                 )
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.viewer_menu_save)) },
-                    onClick = onSave,
-                )
+                if (!inVault) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.viewer_menu_save)) },
+                        onClick = onSave,
+                    )
+                }
                 // Videos have no bottom action bar (the player controller owns
                 // that edge): file actions live here instead.
-                if (item.isVideo) {
+                if (item.isVideo && !inVault) {
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.viewer_action_move)) },
                         onClick = onMove,
@@ -627,6 +648,8 @@ private fun ViewerTopBar(
                         text = { Text(stringResource(R.string.viewer_action_share)) },
                         onClick = onShare,
                     )
+                }
+                if (item.isVideo) {
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.viewer_action_info)) },
                         onClick = onInfo,
@@ -640,6 +663,7 @@ private fun ViewerTopBar(
 @Composable
 private fun ViewerActionBar(
     isFavorite: Boolean,
+    inVault: Boolean,
     onTag: () -> Unit,
     onFavorite: () -> Unit,
     onMove: () -> Unit,
@@ -656,16 +680,18 @@ private fun ViewerActionBar(
         horizontalArrangement = Arrangement.spacedBy(4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        ViewerAction(Lucide.Tag, stringResource(R.string.viewer_action_tag), onClick = onTag)
-        ViewerAction(
-            icon = if (isFavorite) Lucide.HeartFilled else Lucide.Heart,
-            label = stringResource(R.string.viewer_action_favourite),
-            tint = if (isFavorite) Hues.Favorite else Color.White,
-            onClick = onFavorite,
-        )
-        ViewerAction(Lucide.FolderInput, stringResource(R.string.viewer_action_move), onClick = onMove)
-        ViewerAction(Lucide.Trash2, stringResource(R.string.viewer_action_trash), onClick = onTrash)
-        ViewerAction(Lucide.Share2, stringResource(R.string.viewer_action_share), onClick = onShare)
+        if (!inVault) {
+            ViewerAction(Lucide.Tag, stringResource(R.string.viewer_action_tag), onClick = onTag)
+            ViewerAction(
+                icon = if (isFavorite) Lucide.HeartFilled else Lucide.Heart,
+                label = stringResource(R.string.viewer_action_favourite),
+                tint = if (isFavorite) Hues.Favorite else Color.White,
+                onClick = onFavorite,
+            )
+            ViewerAction(Lucide.FolderInput, stringResource(R.string.viewer_action_move), onClick = onMove)
+            ViewerAction(Lucide.Trash2, stringResource(R.string.viewer_action_trash), onClick = onTrash)
+            ViewerAction(Lucide.Share2, stringResource(R.string.viewer_action_share), onClick = onShare)
+        }
         ViewerAction(Lucide.Info, stringResource(R.string.viewer_action_info), onClick = onInfo)
     }
 }

@@ -22,6 +22,9 @@ import com.boxpix.app.data.storage.StorageEnv
 import com.boxpix.app.data.storage.StorageProvider
 import com.boxpix.app.data.tags.TagRepository
 import com.boxpix.app.data.trash.TrashRepository
+import com.boxpix.app.data.vault.VaultPaths
+import com.boxpix.app.data.vault.VaultSession
+import com.boxpix.app.data.vault.VaultState
 import com.boxpix.app.ui.search.SearchContext
 import com.boxpix.app.ui.sortmode.SortSession
 import com.boxpix.app.ui.viewer.ViewerSession
@@ -59,6 +62,7 @@ class ExplorerViewModel @Inject constructor(
     private val resolver: EndpointResolver,
     private val downloadRequester: DownloadRequester,
     private val metadataRepository: MetadataRepository,
+    private val vaultSession: VaultSession,
 ) : ViewModel() {
 
     private val _downloadConfirm =
@@ -125,10 +129,16 @@ class ExplorerViewModel @Inject constructor(
         /** S2: the box is unreachable, the grid serves the Room index. */
         val offline: Boolean = false,
         val connection: ConnectionMode? = null,
+        /** M8: the disk's vault, when one exists. */
+        val vault: VaultState = VaultState.NoVault,
+        val vaultMount: String? = null,
     ) {
         val current: FolderRef? get() = stack.lastOrNull() ?: root
         val depth: Int get() = stack.size
         val selectionMode: Boolean get() = selection.isNotEmpty()
+
+        /** True while browsing inside the vault: write/Room actions stay hidden. */
+        val inVault: Boolean get() = current?.displayPath?.let(VaultPaths::isVaultPath) == true
         val photoColumns: Int get() = (albumColumns + 1).coerceAtMost(UiPrefsStore.MAX_COLUMNS + 1)
         val breadcrumb: String
             get() = (listOfNotNull(root?.name) + stack.map { it.name }).joinToString(" › ")
@@ -144,7 +154,24 @@ class ExplorerViewModel @Inject constructor(
             val isFake = env.useFakeProvider.first()
             val root = resolveRoot(isFake)
             _state.update { it.copy(root = root, isFake = isFake) }
-            if (root != null) load(initial = true)
+            if (root != null) {
+                // Vault discovery runs when the disk is mounted (this screen's
+                // creation), never per navigation — the probe is one download.
+                vaultSession.probe()
+                load(initial = true)
+            }
+        }
+        viewModelScope.launch {
+            vaultSession.state.collect { vault ->
+                _state.update { it.copy(vault = vault, vaultMount = vaultSession.mountDisplayPath) }
+                val insideVault = _state.value.stack.any { VaultPaths.isVaultPath(it.displayPath) }
+                if (vault != VaultState.Unlocked && insideVault) {
+                    // Locked while browsing the vault: back to the disk, nothing
+                    // decrypted stays on screen.
+                    _state.update { it.copy(stack = emptyList(), selection = emptySet()) }
+                    load(initial = true)
+                }
+            }
         }
         viewModelScope.launch {
             uiPrefs.gridColumns.collect { columns ->
@@ -218,6 +245,16 @@ class ExplorerViewModel @Inject constructor(
 
     // Navigation
 
+    /** Enters the unlocked vault from its tile; [label] is the localized name. */
+    fun openVault(label: String) {
+        val mount = _state.value.vaultMount ?: return
+        if (_state.value.vault != VaultState.Unlocked) return
+        _state.update {
+            it.copy(stack = it.stack + FolderRef(PathCodec.encode(mount), mount, label))
+        }
+        viewModelScope.launch { load(initial = true) }
+    }
+
     fun openFolder(entry: StorageEntry) {
         if (_state.value.selectionMode) {
             toggleSelection(entry.pathB64)
@@ -247,7 +284,13 @@ class ExplorerViewModel @Inject constructor(
     }
 
     fun reload() {
-        viewModelScope.launch { load(initial = false) }
+        viewModelScope.launch {
+            // Manual resync / return to the screen: one cheap re-probe when no
+            // vault is known yet (a vault created from the desktop shows up
+            // without restarting the app). Never re-probed once found.
+            if (_state.value.vault == VaultState.NoVault) vaultSession.probe()
+            load(initial = false)
+        }
     }
 
     // Selection

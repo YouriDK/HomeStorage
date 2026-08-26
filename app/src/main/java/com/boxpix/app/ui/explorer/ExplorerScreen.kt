@@ -74,10 +74,13 @@ import com.boxpix.app.ui.common.TrashConfirmDialog
 import com.boxpix.app.ui.common.WakingDiskView
 import com.boxpix.app.ui.common.formatDuration
 import com.boxpix.app.ui.common.message
+import com.boxpix.app.data.vault.VaultState
 import com.boxpix.app.ui.explorer.ExplorerViewModel.AlbumUi
 import com.boxpix.app.ui.icons.Lucide
 import com.boxpix.app.ui.theme.Hues
 import com.boxpix.app.ui.theme.boxpixColors
+import com.boxpix.app.ui.vault.VaultUnlockSheet
+import com.boxpix.app.ui.vault.VaultViewModel
 
 @Composable
 fun ExplorerScreen(
@@ -86,8 +89,10 @@ fun ExplorerScreen(
     onOpenSearch: () -> Unit,
     onOpenSortMode: () -> Unit,
     viewModel: ExplorerViewModel = hiltViewModel(),
+    vaultViewModel: VaultViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val vaultLabel = stringResource(R.string.vault_title)
 
     BackHandler(enabled = state.selectionMode || state.depth > 0) {
         viewModel.onBack()
@@ -129,6 +134,7 @@ fun ExplorerScreen(
                     isProtected = singleFolder?.displayPath in state.protectedPaths,
                     isExcluded = singleFolder?.displayPath in state.excludedPaths,
                     writeEnabled = !state.offline,
+                    inVault = state.inVault,
                     onClose = viewModel::clearSelection,
                     onRename = { showRenameDialog = true },
                     onTag = { showTagPicker = true },
@@ -156,9 +162,13 @@ fun ExplorerScreen(
                 SortRow(
                     sort = state.sort,
                     onSortSelected = viewModel::setSort,
-                    newFolderEnabled = !state.offline,
+                    newFolderEnabled = !state.offline && !state.inVault,
                     onNewFolder = { showNewFolderDialog = true },
                 )
+            }
+
+            if (state.vault == VaultState.Unlocked) {
+                VaultUnlockedBanner(onLock = vaultViewModel::lock)
             }
 
             if (state.offline) {
@@ -188,10 +198,23 @@ fun ExplorerScreen(
 
                 state.folders.isEmpty() && state.media.isEmpty() -> EmptyFolderView()
 
-                else -> ContentGrid(state = state, viewModel = viewModel, onOpenViewer = onOpenViewer)
+                else -> ContentGrid(
+                    state = state,
+                    viewModel = viewModel,
+                    onOpenViewer = onOpenViewer,
+                    onVaultTileTap = {
+                        if (state.vault == VaultState.Unlocked) {
+                            viewModel.openVault(vaultLabel)
+                        } else {
+                            vaultViewModel.openSheet()
+                        }
+                    },
+                )
             }
         }
     }
+
+    VaultUnlockSheet(vaultViewModel)
 
     if (showMetadataSheet) {
         com.boxpix.app.ui.common.MetadataSheet(
@@ -356,7 +379,7 @@ private fun ExplorerTopBar(
             state.connection == ConnectionMode.REMOTE -> Badge(stringResource(R.string.badge_remote), dot = false)
         }
         Spacer(Modifier.size(4.dp))
-        if (state.media.isNotEmpty() && !state.offline) {
+        if (state.media.isNotEmpty() && !state.offline && !state.inVault) {
             IconButton(onClick = onOpenSortMode) {
                 Icon(
                     Lucide.Hand,
@@ -484,6 +507,7 @@ private fun SelectionBar(
     isProtected: Boolean,
     isExcluded: Boolean,
     writeEnabled: Boolean,
+    inVault: Boolean,
     onClose: () -> Unit,
     onRename: () -> Unit,
     onTag: () -> Unit,
@@ -513,7 +537,10 @@ private fun SelectionBar(
             color = colors.text,
         )
         Spacer(Modifier.weight(1f))
-        if (canProtect) {
+        // M8 lot 2: inside the vault, only selection mechanics — every action
+        // below routes through Room or the clear mirrors. Vault-native tags,
+        // trash and moves arrive with the M8 index and write lots.
+        if (canProtect && !inVault) {
             IconButton(onClick = onToggleProtect, enabled = writeEnabled) {
                 Icon(
                     if (isProtected) Lucide.LockOpen else Lucide.Lock,
@@ -535,7 +562,7 @@ private fun SelectionBar(
                 )
             }
         }
-        if (canRename) {
+        if (canRename && !inVault) {
             IconButton(onClick = onRename, enabled = writeEnabled) {
                 Icon(
                     Lucide.Pencil,
@@ -545,46 +572,48 @@ private fun SelectionBar(
                 )
             }
         }
-        IconButton(onClick = onTag) {
-            Icon(
-                Lucide.Tag,
-                contentDescription = stringResource(R.string.explorer_action_tag),
-                tint = colors.dim,
-                modifier = Modifier.size(22.dp),
-            )
-        }
-        // Room-first like tagging: works offline, the XMP queue drains later.
-        IconButton(onClick = onEditMetadata) {
-            Icon(
-                Lucide.SlidersHorizontal,
-                contentDescription = stringResource(R.string.explorer_action_metadata),
-                tint = colors.dim,
-                modifier = Modifier.size(22.dp),
-            )
-        }
-        IconButton(onClick = onDownload) {
-            Icon(
-                Lucide.Download,
-                contentDescription = stringResource(R.string.viewer_menu_save),
-                tint = colors.dim,
-                modifier = Modifier.size(22.dp),
-            )
-        }
-        IconButton(onClick = onMove, enabled = writeEnabled) {
-            Icon(
-                Lucide.FolderInput,
-                contentDescription = stringResource(R.string.explorer_action_move),
-                tint = colors.dim,
-                modifier = Modifier.size(22.dp),
-            )
-        }
-        IconButton(onClick = onTrash, enabled = writeEnabled) {
-            Icon(
-                Lucide.Trash2,
-                contentDescription = stringResource(R.string.explorer_action_trash),
-                tint = colors.dim,
-                modifier = Modifier.size(22.dp),
-            )
+        if (!inVault) {
+            IconButton(onClick = onTag) {
+                Icon(
+                    Lucide.Tag,
+                    contentDescription = stringResource(R.string.explorer_action_tag),
+                    tint = colors.dim,
+                    modifier = Modifier.size(22.dp),
+                )
+            }
+            // Room-first like tagging: works offline, the XMP queue drains later.
+            IconButton(onClick = onEditMetadata) {
+                Icon(
+                    Lucide.SlidersHorizontal,
+                    contentDescription = stringResource(R.string.explorer_action_metadata),
+                    tint = colors.dim,
+                    modifier = Modifier.size(22.dp),
+                )
+            }
+            IconButton(onClick = onDownload) {
+                Icon(
+                    Lucide.Download,
+                    contentDescription = stringResource(R.string.viewer_menu_save),
+                    tint = colors.dim,
+                    modifier = Modifier.size(22.dp),
+                )
+            }
+            IconButton(onClick = onMove, enabled = writeEnabled) {
+                Icon(
+                    Lucide.FolderInput,
+                    contentDescription = stringResource(R.string.explorer_action_move),
+                    tint = colors.dim,
+                    modifier = Modifier.size(22.dp),
+                )
+            }
+            IconButton(onClick = onTrash, enabled = writeEnabled) {
+                Icon(
+                    Lucide.Trash2,
+                    contentDescription = stringResource(R.string.explorer_action_trash),
+                    tint = colors.dim,
+                    modifier = Modifier.size(22.dp),
+                )
+            }
         }
         IconButton(onClick = onSelectAll) {
             Icon(
@@ -626,6 +655,7 @@ private fun ContentGrid(
     state: ExplorerViewModel.UiState,
     viewModel: ExplorerViewModel,
     onOpenViewer: () -> Unit,
+    onVaultTileTap: () -> Unit,
 ) {
     LazyVerticalGrid(
         columns = GridCells.Fixed(state.photoColumns),
@@ -636,6 +666,11 @@ private fun ContentGrid(
         horizontalArrangement = Arrangement.spacedBy(2.dp),
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
+        if (state.depth == 0 && state.vault != VaultState.NoVault) {
+            items(1, key = { "vault-tile" }) {
+                VaultTile(unlocked = state.vault == VaultState.Unlocked, onTap = onVaultTileTap)
+            }
+        }
         items(state.albums.size, key = { "folder:" + state.albums[it].entry.pathB64 }) { index ->
             FolderTile(
                 album = state.albums[index],
@@ -847,6 +882,94 @@ private fun MediaCell(
             )
         }
         if (selected) SelectionCheck(Modifier.align(Alignment.TopEnd))
+    }
+}
+
+/**
+ * The vault's tile at the disk root — deliberately NOT a folder tile: flat
+ * elevated surface, a lock badge, and an explicit locked/unlocked state.
+ */
+@Composable
+private fun VaultTile(unlocked: Boolean, onTap: () -> Unit) {
+    val colors = boxpixColors
+    Box(
+        modifier = Modifier
+            .aspectRatio(1f)
+            .background(colors.elevated)
+            .border(1.dp, if (unlocked) colors.accent else colors.hairlineStrong)
+            .clickable(onClick = onTap),
+    ) {
+        Column(
+            modifier = Modifier.align(Alignment.Center),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(34.dp)
+                    .background(
+                        if (unlocked) colors.accentSoft else colors.surface,
+                        CircleShape,
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    if (unlocked) Lucide.LockOpen else Lucide.Lock,
+                    contentDescription = null,
+                    tint = if (unlocked) colors.accent else colors.dim,
+                    modifier = Modifier.size(17.dp),
+                )
+            }
+            Spacer(Modifier.height(7.dp))
+            Text(
+                text = stringResource(R.string.vault_title),
+                fontSize = 11.5.sp,
+                fontWeight = FontWeight.Medium,
+                color = colors.text,
+            )
+            Text(
+                text = stringResource(
+                    if (unlocked) R.string.vault_state_unlocked else R.string.vault_state_locked,
+                ),
+                fontSize = 9.sp,
+                color = if (unlocked) colors.accent else colors.dim,
+            )
+        }
+    }
+}
+
+/** Discreet persistent reminder that decrypted content is on screen. */
+@Composable
+private fun VaultUnlockedBanner(onLock: () -> Unit) {
+    val colors = boxpixColors
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 14.dp, vertical = 4.dp)
+            .background(colors.elevated, RoundedCornerShape(10.dp))
+            .padding(start = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            Lucide.LockOpen,
+            contentDescription = null,
+            tint = colors.accent,
+            modifier = Modifier.size(14.dp),
+        )
+        Spacer(Modifier.size(8.dp))
+        Text(
+            text = stringResource(R.string.vault_banner_unlocked),
+            style = MaterialTheme.typography.bodySmall,
+            color = colors.text,
+            modifier = Modifier.weight(1f),
+        )
+        IconButton(onClick = onLock) {
+            Icon(
+                Lucide.Lock,
+                contentDescription = stringResource(R.string.vault_lock_action),
+                tint = colors.dim,
+                modifier = Modifier.size(16.dp),
+            )
+        }
     }
 }
 
