@@ -335,6 +335,20 @@ fun SettingsScreen(
                     modifier = Modifier.size(18.dp),
                 )
             }
+            if (backupRoot != null) {
+                val backupInterval by viewModel.backupIntervalDays.collectAsStateWithLifecycle()
+                SettingRow(name = stringResource(R.string.settings_backup_frequency), sub = null) {
+                    SegmentedControlText(
+                        options = listOf(
+                            "1" to stringResource(R.string.backup_freq_daily),
+                            "7" to stringResource(R.string.backup_freq_weekly),
+                            "30" to stringResource(R.string.backup_freq_monthly),
+                        ),
+                        selected = backupInterval.toString(),
+                        onSelect = { viewModel.setBackupIntervalDays(it.toLong()) },
+                    )
+                }
+            }
             SettingRow(
                 name = stringResource(R.string.settings_backup_now),
                 sub = when {

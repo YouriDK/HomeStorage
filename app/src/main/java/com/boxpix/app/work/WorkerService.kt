@@ -20,6 +20,7 @@ import com.boxpix.app.data.media.XmpQueueProcessor
 import com.boxpix.app.data.net.NetworkStatus
 import com.boxpix.app.data.trash.TrashRepository
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -42,6 +43,10 @@ class WorkerService : Service() {
 
     @Inject lateinit var videoThumbs: VideoThumbProcessor
     @Inject lateinit var backupMirror: com.boxpix.app.data.backup.BackupMirror
+    @Inject lateinit var uiPrefs: com.boxpix.app.data.prefs.UiPrefsStore
+
+    private suspend fun passEnabled(pass: String): Boolean =
+        uiPrefs.workerPassEnabled(pass).first()
 
     @Inject lateinit var xmpProcessor: XmpQueueProcessor
 
@@ -85,17 +90,25 @@ class WorkerService : Service() {
                 notify(getString(R.string.worker_notif_working))
                 telemetry.cycleStarted()
                 runCatching {
-                    reconciler.runPass(maxFolders = Int.MAX_VALUE, processLimit = HEAVY_LIMIT)
-                    telemetry.passDone(WorkerTelemetry.PASS_RECONCILE)
-                    videoThumbs.process(HEAVY_LIMIT)
-                    telemetry.passDone(WorkerTelemetry.PASS_VIDEO_THUMBS)
+                    // Every pass has its own switch in the dashboard (owner
+                    // control); XMP keeps the global Settings switch instead.
+                    if (passEnabled(WorkerTelemetry.PASS_RECONCILE)) {
+                        reconciler.runPass(maxFolders = Int.MAX_VALUE, processLimit = HEAVY_LIMIT)
+                        telemetry.passDone(WorkerTelemetry.PASS_RECONCILE)
+                    }
+                    if (passEnabled(WorkerTelemetry.PASS_VIDEO_THUMBS)) {
+                        videoThumbs.process(HEAVY_LIMIT)
+                        telemetry.passDone(WorkerTelemetry.PASS_VIDEO_THUMBS)
+                    }
                     xmpProcessor.process(HEAVY_LIMIT)
                     telemetry.passDone(WorkerTelemetry.PASS_XMP)
-                    trashRepository.purgeOlderThan()
-                    telemetry.passDone(WorkerTelemetry.PASS_PURGE)
-                    // Weekly disk-to-disk mirror (owner's request): the box
+                    if (passEnabled(WorkerTelemetry.PASS_PURGE)) {
+                        trashRepository.purgeOlderThan()
+                        telemetry.passDone(WorkerTelemetry.PASS_PURGE)
+                    }
+                    // Disk-to-disk mirror at the configured cadence: the box
                     // copies server-side; additive only, .trash excluded.
-                    if (backupMirror.runIfDue()) {
+                    if (passEnabled(WorkerTelemetry.PASS_BACKUP) && backupMirror.runIfDue()) {
                         telemetry.passDone(WorkerTelemetry.PASS_BACKUP)
                     }
                     cycles++
@@ -103,7 +116,7 @@ class WorkerService : Service() {
                 }
                 telemetry.cycleEnded(cycles)
                 notify(getString(R.string.worker_notif_idle, cycles))
-                telemetry.awaitWake(CYCLE_INTERVAL_MS)
+                telemetry.awaitWake(uiPrefs.workerCycleMinutes.first() * 60_000L)
             } else {
                 notify(
                     getString(

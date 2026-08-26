@@ -10,6 +10,7 @@ import android.text.format.DateUtils
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -36,6 +37,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -164,6 +166,32 @@ class WorkerViewModel @Inject constructor(
         ),
         ::Counts,
     )
+
+    /** Per-pass switches + cycle cadence (owner control over the worker). */
+    val passSwitches: kotlinx.coroutines.flow.StateFlow<Map<String, Boolean>> = combine(
+        uiPrefs.workerPassEnabled(WorkerTelemetry.PASS_RECONCILE),
+        uiPrefs.workerPassEnabled(WorkerTelemetry.PASS_VIDEO_THUMBS),
+        uiPrefs.workerPassEnabled(WorkerTelemetry.PASS_PURGE),
+        uiPrefs.workerPassEnabled(WorkerTelemetry.PASS_BACKUP),
+    ) { reconcile, videos, purge, backup ->
+        mapOf(
+            WorkerTelemetry.PASS_RECONCILE to reconcile,
+            WorkerTelemetry.PASS_VIDEO_THUMBS to videos,
+            WorkerTelemetry.PASS_PURGE to purge,
+            WorkerTelemetry.PASS_BACKUP to backup,
+        )
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
+    fun setPassEnabled(pass: String, enabled: Boolean) {
+        viewModelScope.launch { uiPrefs.setWorkerPassEnabled(pass, enabled) }
+    }
+
+    val cycleMinutes = uiPrefs.workerCycleMinutes
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 15L)
+
+    fun setCycleMinutes(minutes: Long) {
+        viewModelScope.launch { uiPrefs.setWorkerCycleMinutes(minutes) }
+    }
 
     /** Polled while the screen is visible only — the dashboard costs nothing asleep. */
     private val vitals = flow {
@@ -355,11 +383,58 @@ fun WorkerScreen(
             QueueRow(stringResource(R.string.worker_queue_xmp), state.pendingXmp, state.failedXmp)
 
             SectionTitle(stringResource(R.string.worker_section_passes))
-            PassRow(stringResource(R.string.worker_pass_reconcile), state.lastPasses[WorkerTelemetry.PASS_RECONCILE])
-            PassRow(stringResource(R.string.worker_pass_videos), state.lastPasses[WorkerTelemetry.PASS_VIDEO_THUMBS])
+            val passSwitches by viewModel.passSwitches.collectAsStateWithLifecycle()
+            PassRow(
+                stringResource(R.string.worker_pass_reconcile),
+                state.lastPasses[WorkerTelemetry.PASS_RECONCILE],
+                enabled = passSwitches[WorkerTelemetry.PASS_RECONCILE],
+                onToggle = { viewModel.setPassEnabled(WorkerTelemetry.PASS_RECONCILE, it) },
+            )
+            PassRow(
+                stringResource(R.string.worker_pass_videos),
+                state.lastPasses[WorkerTelemetry.PASS_VIDEO_THUMBS],
+                enabled = passSwitches[WorkerTelemetry.PASS_VIDEO_THUMBS],
+                onToggle = { viewModel.setPassEnabled(WorkerTelemetry.PASS_VIDEO_THUMBS, it) },
+            )
+            // XMP keeps its global switch in Settings > Synchronisation.
             PassRow(stringResource(R.string.worker_pass_xmp), state.lastPasses[WorkerTelemetry.PASS_XMP])
-            PassRow(stringResource(R.string.worker_pass_purge), state.lastPasses[WorkerTelemetry.PASS_PURGE])
-            PassRow(stringResource(R.string.worker_pass_backup), state.lastPasses[WorkerTelemetry.PASS_BACKUP])
+            PassRow(
+                stringResource(R.string.worker_pass_purge),
+                state.lastPasses[WorkerTelemetry.PASS_PURGE],
+                enabled = passSwitches[WorkerTelemetry.PASS_PURGE],
+                onToggle = { viewModel.setPassEnabled(WorkerTelemetry.PASS_PURGE, it) },
+            )
+            PassRow(
+                stringResource(R.string.worker_pass_backup),
+                state.lastPasses[WorkerTelemetry.PASS_BACKUP],
+                enabled = passSwitches[WorkerTelemetry.PASS_BACKUP],
+                onToggle = { viewModel.setPassEnabled(WorkerTelemetry.PASS_BACKUP, it) },
+            )
+            val cycleMinutes by viewModel.cycleMinutes.collectAsStateWithLifecycle()
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = stringResource(R.string.worker_cycle_every),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = colors.text,
+                    modifier = Modifier.weight(1f),
+                )
+                listOf(15L to "15 min", 60L to "1 h", 360L to "6 h").forEach { (minutes, label) ->
+                    val selected = cycleMinutes == minutes
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = if (selected) colors.accent else colors.dim,
+                        modifier = Modifier
+                            .clickable { viewModel.setCycleMinutes(minutes) }
+                            .padding(horizontal = 8.dp, vertical = 6.dp),
+                    )
+                }
+            }
 
             if (state.errors.isNotEmpty()) {
                 SectionTitle(stringResource(R.string.worker_section_errors))
@@ -562,18 +637,24 @@ private fun QueueRow(label: String, pending: Int, failed: Int) {
 }
 
 @Composable
-private fun PassRow(label: String, atEpochSeconds: Long?) {
+private fun PassRow(
+    label: String,
+    atEpochSeconds: Long?,
+    enabled: Boolean? = null,
+    onToggle: ((Boolean) -> Unit)? = null,
+) {
     val colors = boxpixColors
+    val isOn = enabled ?: true
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(36.dp),
+            .height(40.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
             text = label,
             style = MaterialTheme.typography.bodyMedium,
-            color = colors.text,
+            color = if (isOn) colors.text else colors.faint,
             modifier = Modifier.weight(1f),
         )
         Text(
@@ -582,6 +663,21 @@ private fun PassRow(label: String, atEpochSeconds: Long?) {
             style = MaterialTheme.typography.labelMedium,
             color = colors.dim,
         )
+        if (onToggle != null) {
+            Spacer(Modifier.size(10.dp))
+            Switch(
+                checked = isOn,
+                onCheckedChange = onToggle,
+                modifier = Modifier.scale(0.75f),
+                colors = SwitchDefaults.colors(
+                    checkedTrackColor = colors.accent,
+                    checkedThumbColor = colors.bg,
+                    uncheckedTrackColor = colors.hairline,
+                    uncheckedThumbColor = colors.surface,
+                    uncheckedBorderColor = colors.hairlineStrong,
+                ),
+            )
+        }
     }
 }
 

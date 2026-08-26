@@ -181,6 +181,11 @@ class SettingsViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
     val lastBackupAt = uiPrefs.lastBackupAtEpochSeconds
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+    val backupIntervalDays = uiPrefs.backupIntervalDays
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 7L)
+
+    fun setBackupIntervalDays(days: Long) = launch { uiPrefs.setBackupIntervalDays(days) }
+
     val backupRunning = backupMirror.running
     val backupReport = backupMirror.lastReport
 

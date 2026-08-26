@@ -36,6 +36,9 @@ interface BackupConfig {
     suspend fun backupRoot(): Pair<String, String>?
     suspend fun lastBackupAtEpochSeconds(): Long?
     suspend fun setLastBackupAt(epochSeconds: Long)
+
+    /** Cadence in days (1 = daily, 7 = weekly, 30 = monthly). */
+    suspend fun intervalDays(): Long = 7L
 }
 
 class BackupMirror(
@@ -67,11 +70,11 @@ class BackupMirror(
 
     private val mutex = Mutex()
 
-    /** Worker entry point: runs when configured and the last pass is a week old. */
+    /** Worker entry point: runs when configured and the cadence has elapsed. */
     suspend fun runIfDue(): Boolean {
         config.backupRoot() ?: return false
         val last = config.lastBackupAtEpochSeconds() ?: 0L
-        if (clock.instant().epochSecond - last < WEEKLY_SECONDS) return false
+        if (clock.instant().epochSecond - last < config.intervalDays() * 86_400) return false
         return run() != null
     }
 

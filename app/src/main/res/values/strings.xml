@@ -268,6 +268,11 @@
     <string name="settings_backup_pick_disk">Pick a disk</string>
     <string name="settings_backup_no_subfolders">No subfolders here.</string>
     <string name="settings_backup_choose_here">Use this folder</string>
+    <string name="settings_backup_frequency">Frequency</string>
+    <string name="backup_freq_daily">Daily</string>
+    <string name="backup_freq_weekly">Weekly</string>
+    <string name="backup_freq_monthly">Monthly</string>
+    <string name="worker_cycle_every">Wake up every</string>
     <string name="settings_trash_row">Trash</string>
     <string name="settings_trash_auto">Auto purge after 30 days</string>
     <string name="settings_group_connection">Connection</string>

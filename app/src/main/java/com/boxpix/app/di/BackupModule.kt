@@ -32,6 +32,7 @@ object BackupModule {
             override suspend fun backupRoot() = uiPrefs.backupRoot.first()
             override suspend fun lastBackupAtEpochSeconds() = uiPrefs.lastBackupAtEpochSeconds.first()
             override suspend fun setLastBackupAt(epochSeconds: Long) = uiPrefs.setLastBackupAt(epochSeconds)
+            override suspend fun intervalDays() = uiPrefs.backupIntervalDays.first()
         },
         rootLocator,
         clock,

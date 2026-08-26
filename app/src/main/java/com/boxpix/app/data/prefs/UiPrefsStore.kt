@@ -68,6 +68,33 @@ class UiPrefsStore @Inject constructor(
         }
     }
 
+    /** Per-pass worker switches (owner control), ON by default. */
+    fun workerPassEnabled(pass: String): Flow<Boolean> = context.uiPrefsDataStore.data
+        .map { it[booleanPreferencesKey("worker_pass_$pass")] ?: true }
+        .distinctUntilChanged()
+
+    suspend fun setWorkerPassEnabled(pass: String, enabled: Boolean) {
+        context.uiPrefsDataStore.edit { it[booleanPreferencesKey("worker_pass_$pass")] = enabled }
+    }
+
+    /** Worker wake-up cadence in minutes (15 by default). */
+    val workerCycleMinutes: Flow<Long> = context.uiPrefsDataStore.data
+        .map { it[KEY_WORKER_CYCLE_MINUTES] ?: 15L }
+        .distinctUntilChanged()
+
+    suspend fun setWorkerCycleMinutes(minutes: Long) {
+        context.uiPrefsDataStore.edit { it[KEY_WORKER_CYCLE_MINUTES] = minutes }
+    }
+
+    /** Backup cadence in days — 7 by default (owner's weekly wish). */
+    val backupIntervalDays: Flow<Long> = context.uiPrefsDataStore.data
+        .map { it[KEY_BACKUP_INTERVAL_DAYS] ?: 7L }
+        .distinctUntilChanged()
+
+    suspend fun setBackupIntervalDays(days: Long) {
+        context.uiPrefsDataStore.edit { it[KEY_BACKUP_INTERVAL_DAYS] = days }
+    }
+
     val lastBackupAtEpochSeconds: Flow<Long?> = context.uiPrefsDataStore.data
         .map { it[KEY_LAST_BACKUP_AT] }
         .distinctUntilChanged()
@@ -169,6 +196,8 @@ class UiPrefsStore @Inject constructor(
         private val KEY_BACKUP_ROOT_B64 = stringPreferencesKey("backup_root_b64")
         private val KEY_BACKUP_ROOT_DISPLAY = stringPreferencesKey("backup_root_display")
         private val KEY_LAST_BACKUP_AT = androidx.datastore.preferences.core.longPreferencesKey("last_backup_at")
+        private val KEY_BACKUP_INTERVAL_DAYS = androidx.datastore.preferences.core.longPreferencesKey("backup_interval_days")
+        private val KEY_WORKER_CYCLE_MINUTES = androidx.datastore.preferences.core.longPreferencesKey("worker_cycle_minutes")
         private val KEY_THEME = stringPreferencesKey("theme_mode")
         private val KEY_ACCENT = stringPreferencesKey("accent_preset")
         private val KEY_APP_LOCK = booleanPreferencesKey("app_lock_enabled")
