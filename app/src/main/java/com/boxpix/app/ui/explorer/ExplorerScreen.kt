@@ -202,47 +202,6 @@ fun ExplorerScreen(
                 )
             }
 
-            uploadProgress?.let { progress ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 14.dp, vertical = 4.dp)
-                        .background(boxpixColors.elevated, RoundedCornerShape(10.dp))
-                        .padding(horizontal = 12.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(14.dp),
-                        color = boxpixColors.accent,
-                        trackColor = boxpixColors.hairline,
-                        strokeWidth = 1.5.dp,
-                    )
-                    Spacer(Modifier.size(10.dp))
-                    Text(
-                        text = stringResource(
-                            R.string.upload_progress,
-                            progress.fileName.orEmpty(),
-                            progress.index,
-                            progress.total,
-                        ),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = boxpixColors.text,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
-            uploadOutcome?.let { outcome ->
-                val summary = buildString {
-                    append(pluralStringResource(R.plurals.upload_done, outcome.uploaded, outcome.uploaded))
-                    if (outcome.failed > 0) append(" · ").append(stringResource(R.string.upload_failed, outcome.failed))
-                    if (outcome.skippedTooLarge > 0) {
-                        append(" · ").append(stringResource(R.string.upload_skipped_large, outcome.skippedTooLarge))
-                    }
-                }
-                ErrorBanner(message = summary, onDismiss = viewModel::consumeUploadOutcome)
-            }
-
             if (state.offline) {
                 Text(
                     text = stringResource(R.string.offline_banner),
@@ -271,6 +230,73 @@ fun ExplorerScreen(
                 state.folders.isEmpty() && state.media.isEmpty() -> EmptyFolderView()
 
                 else -> ContentGrid(state = state, viewModel = viewModel, onOpenViewer = onOpenViewer)
+            }
+        }
+
+        // Upload status: a quiet pill at the bottom — progress while sending,
+        // then the summary, which dismisses itself after a few seconds.
+        androidx.compose.animation.AnimatedVisibility(
+            visible = uploadProgress != null || uploadOutcome != null,
+            enter = androidx.compose.animation.fadeIn() +
+                androidx.compose.animation.slideInVertically { it / 2 },
+            exit = androidx.compose.animation.fadeOut() +
+                androidx.compose.animation.slideOutVertically { it / 2 },
+            modifier = Modifier.align(Alignment.BottomCenter),
+        ) {
+            val progress = uploadProgress
+            val outcome = uploadOutcome
+            LaunchedEffect(outcome) {
+                if (outcome != null && progress == null) {
+                    kotlinx.coroutines.delay(5_000)
+                    viewModel.consumeUploadOutcome()
+                }
+            }
+            Row(
+                modifier = Modifier
+                    .padding(bottom = 24.dp)
+                    .background(boxpixColors.elevated, RoundedCornerShape(18.dp))
+                    .border(1.dp, boxpixColors.hairlineStrong, RoundedCornerShape(18.dp))
+                    .clickable { if (progress == null) viewModel.consumeUploadOutcome() }
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (progress != null) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(14.dp),
+                        color = boxpixColors.accent,
+                        trackColor = boxpixColors.hairline,
+                        strokeWidth = 1.5.dp,
+                    )
+                    Spacer(Modifier.size(10.dp))
+                    Text(
+                        text = stringResource(
+                            R.string.upload_progress,
+                            progress.fileName.orEmpty(),
+                            progress.index,
+                            progress.total,
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = boxpixColors.text,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                } else if (outcome != null) {
+                    Text(
+                        text = buildString {
+                            append(pluralStringResource(R.plurals.upload_done, outcome.uploaded, outcome.uploaded))
+                            if (outcome.failed > 0) {
+                                append(" · ").append(stringResource(R.string.upload_failed, outcome.failed))
+                            }
+                            if (outcome.skippedTooLarge > 0) {
+                                append(" · ").append(stringResource(R.string.upload_skipped_large, outcome.skippedTooLarge))
+                            }
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = boxpixColors.text,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
         }
     }

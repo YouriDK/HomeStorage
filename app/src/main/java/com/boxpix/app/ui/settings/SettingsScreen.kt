@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
@@ -322,14 +323,10 @@ fun SettingsScreen(
             val lastBackupAt by viewModel.lastBackupAt.collectAsStateWithLifecycle()
             val backupRunning by viewModel.backupRunning.collectAsStateWithLifecycle()
             val backupReport by viewModel.backupReport.collectAsStateWithLifecycle()
-            var showBackupPicker by remember { mutableStateOf(false) }
             SettingRow(
                 name = stringResource(R.string.settings_backup_disk),
                 sub = backupRoot?.second ?: stringResource(R.string.settings_backup_disk_none),
-                onClick = {
-                    viewModel.loadBackupDisks()
-                    showBackupPicker = true
-                },
+                onClick = viewModel::openBackupPicker,
             ) {
                 Icon(
                     Lucide.ChevronRight,
@@ -369,10 +366,10 @@ fun SettingsScreen(
             }
             HairlineDivider()
 
-            if (showBackupPicker) {
-                val disks by viewModel.backupDisks.collectAsStateWithLifecycle()
+            val backupBrowse by viewModel.backupBrowse.collectAsStateWithLifecycle()
+            backupBrowse?.let { browse ->
                 androidx.compose.material3.AlertDialog(
-                    onDismissRequest = { showBackupPicker = false },
+                    onDismissRequest = viewModel::closeBackupPicker,
                     containerColor = colors.elevated,
                     shape = RoundedCornerShape(14.dp),
                     title = {
@@ -380,29 +377,78 @@ fun SettingsScreen(
                     },
                     text = {
                         Column {
-                            disks?.forEach { disk ->
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                if (browse.stack.isNotEmpty()) {
+                                    IconButton(onClick = viewModel::backupBrowseUp) {
+                                        Icon(
+                                            Lucide.ArrowLeft,
+                                            contentDescription = null,
+                                            tint = colors.dim,
+                                            modifier = Modifier.size(18.dp),
+                                        )
+                                    }
+                                }
                                 Text(
-                                    text = disk.displayPath,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = colors.text,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable {
-                                            showBackupPicker = false
-                                            viewModel.setBackupRoot(disk)
-                                        }
-                                        .padding(vertical = 12.dp),
+                                    text = browse.current?.displayPath
+                                        ?: stringResource(R.string.settings_backup_pick_disk),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = colors.dim,
+                                    maxLines = 1,
                                 )
-                            } ?: Text(
-                                stringResource(R.string.settings_backup_loading),
-                                color = colors.dim,
-                                style = MaterialTheme.typography.bodySmall,
+                            }
+                            androidx.compose.foundation.lazy.LazyColumn(
+                                modifier = Modifier.heightIn(max = 320.dp),
+                            ) {
+                                items(browse.folders.size, key = { browse.folders[it].pathB64 }) { index ->
+                                    val folder = browse.folders[index]
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable { viewModel.backupBrowseInto(folder) }
+                                            .padding(vertical = 12.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        Icon(
+                                            Lucide.Folder,
+                                            contentDescription = null,
+                                            tint = com.boxpix.app.ui.theme.Hues.Folder,
+                                            modifier = Modifier.size(18.dp),
+                                        )
+                                        Spacer(Modifier.size(10.dp))
+                                        Text(
+                                            text = folder.name,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = colors.text,
+                                            maxLines = 1,
+                                        )
+                                    }
+                                }
+                                if (browse.folders.isEmpty() && !browse.loading) {
+                                    items(1) {
+                                        Text(
+                                            stringResource(R.string.settings_backup_no_subfolders),
+                                            color = colors.faint,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            modifier = Modifier.padding(vertical = 12.dp),
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    confirmButton = {
+                        androidx.compose.material3.TextButton(
+                            onClick = viewModel::chooseBackupHere,
+                            enabled = browse.current != null,
+                        ) {
+                            Text(
+                                stringResource(R.string.settings_backup_choose_here),
+                                color = if (browse.current != null) colors.accent else colors.faint,
                             )
                         }
                     },
-                    confirmButton = {},
                     dismissButton = {
-                        androidx.compose.material3.TextButton(onClick = { showBackupPicker = false }) {
+                        androidx.compose.material3.TextButton(onClick = viewModel::closeBackupPicker) {
                             Text(stringResource(R.string.dialog_cancel), color = colors.dim)
                         }
                     },

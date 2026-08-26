@@ -184,17 +184,53 @@ class SettingsViewModel @Inject constructor(
     val backupRunning = backupMirror.running
     val backupReport = backupMirror.lastReport
 
-    private val _backupDisks =
-        kotlinx.coroutines.flow.MutableStateFlow<List<com.boxpix.app.data.storage.StorageEntry>?>(null)
-    val backupDisks: kotlinx.coroutines.flow.StateFlow<List<com.boxpix.app.data.storage.StorageEntry>?> =
-        _backupDisks
-
-    fun loadBackupDisks() = launch {
-        _backupDisks.value = storageProvider.list(null, onlyFolders = true).getOrNull().orEmpty()
+    /** Backup destination picker: a small folder browser over the disk. */
+    data class BackupBrowse(
+        val stack: List<com.boxpix.app.data.storage.StorageEntry> = emptyList(),
+        val folders: List<com.boxpix.app.data.storage.StorageEntry> = emptyList(),
+        val loading: Boolean = true,
+    ) {
+        val current get() = stack.lastOrNull()
     }
 
-    fun setBackupRoot(entry: com.boxpix.app.data.storage.StorageEntry) = launch {
-        uiPrefs.setBackupRoot(entry.pathB64, entry.displayPath)
+    private val _backupBrowse =
+        kotlinx.coroutines.flow.MutableStateFlow<BackupBrowse?>(null)
+    val backupBrowse: kotlinx.coroutines.flow.StateFlow<BackupBrowse?> = _backupBrowse
+
+    fun openBackupPicker() {
+        _backupBrowse.value = BackupBrowse()
+        backupBrowseList(null)
+    }
+
+    fun closeBackupPicker() {
+        _backupBrowse.value = null
+    }
+
+    fun backupBrowseInto(entry: com.boxpix.app.data.storage.StorageEntry) {
+        _backupBrowse.value = _backupBrowse.value?.let {
+            it.copy(stack = it.stack + entry, loading = true)
+        }
+        backupBrowseList(entry.pathB64)
+    }
+
+    fun backupBrowseUp() {
+        val browse = _backupBrowse.value ?: return
+        val stack = browse.stack.dropLast(1)
+        _backupBrowse.value = browse.copy(stack = stack, loading = true)
+        backupBrowseList(stack.lastOrNull()?.pathB64)
+    }
+
+    /** Confirms the folder currently browsed as the mirror destination. */
+    fun chooseBackupHere() = launch {
+        val chosen = _backupBrowse.value?.current ?: return@launch
+        uiPrefs.setBackupRoot(chosen.pathB64, chosen.displayPath)
+        _backupBrowse.value = null
+    }
+
+    private fun backupBrowseList(pathB64: String?) = launch {
+        val folders = storageProvider.list(pathB64, onlyFolders = true)
+            .getOrNull().orEmpty().sortedBy { it.name.lowercase() }
+        _backupBrowse.value = _backupBrowse.value?.copy(folders = folders, loading = false)
     }
 
     fun backUpNow() = backupMirror.runAsync()
