@@ -54,6 +54,19 @@ class VaultSession(
     private val _state = MutableStateFlow<VaultState>(VaultState.NoVault)
     val state: StateFlow<VaultState> = _state.asStateFlow()
 
+    /**
+     * One-shot "walk into the vault" requests (an unlock just succeeded, or
+     * the Settings row was tapped while already unlocked). The Explorer
+     * consumes them when it shows — extra capacity so a request emitted while
+     * nobody collects is not lost.
+     */
+    private val _entryRequests = kotlinx.coroutines.flow.MutableStateFlow(0)
+    val entryRequests: StateFlow<Int> = _entryRequests
+
+    fun requestEntry() {
+        if (_state.value == VaultState.Unlocked) _entryRequests.value += 1
+    }
+
     /** Non-null exactly while [state] is Unlocked. The UI navigates through it. */
     @Volatile
     var provider: CryptomatorProvider? = null

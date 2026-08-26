@@ -69,7 +69,7 @@ class VaultViewModel @Inject constructor(
         viewModelScope.launch {
             _settingsProbeFailed.value = false
             when (session.probe()) {
-                VaultState.Unlocked -> Unit // already open; the Explorer banner leads back in
+                VaultState.Unlocked -> session.requestEntry() // walk back in on return
                 VaultState.Locked -> openSheet()
                 else -> _settingsProbeFailed.value = true
             }
@@ -98,7 +98,10 @@ class VaultViewModel @Inject constructor(
         viewModelScope.launch {
             val remember = _sheet.value.rememberChecked && biometricsAvailable
             when (session.unlock(passphrase, retainRawKey = remember)) {
-                UnlockResult.Success -> _sheet.update { it.copy(unlocking = false, justUnlocked = true) }
+                UnlockResult.Success -> {
+                    session.requestEntry()
+                    _sheet.update { it.copy(unlocking = false, justUnlocked = true) }
+                }
                 UnlockResult.WrongPassphrase -> failed(UnlockError.WRONG_PASSPHRASE, shake = true)
                 is UnlockResult.UnsupportedVault -> failed(UnlockError.UNSUPPORTED)
                 is UnlockResult.Failed -> failed(UnlockError.UNREACHABLE)
@@ -149,7 +152,10 @@ class VaultViewModel @Inject constructor(
         _sheet.update { it.copy(unlocking = true, error = null) }
         viewModelScope.launch {
             when (session.unlockWithRawKey(raw)) {
-                UnlockResult.Success -> _sheet.update { it.copy(unlocking = false, justUnlocked = true) }
+                UnlockResult.Success -> {
+                    session.requestEntry()
+                    _sheet.update { it.copy(unlocking = false, justUnlocked = true) }
+                }
                 else -> {
                     // A stored key that stopped working is stale: forget it.
                     keyStore.forget()

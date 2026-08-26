@@ -233,17 +233,37 @@ fun SettingsScreen(
 
             GroupLabel(stringResource(R.string.settings_group_files))
             val vaultProbeFailed by vaultViewModel.settingsProbeFailed.collectAsStateWithLifecycle()
+            val vaultState by vaultViewModel.vaultState.collectAsStateWithLifecycle()
+            val vaultUnlocked = vaultState == com.boxpix.app.data.vault.VaultState.Unlocked
             SettingRow(
                 name = stringResource(R.string.vault_menu_open),
                 sub = if (vaultProbeFailed) stringResource(R.string.error_no_vault_here) else null,
                 onClick = vaultViewModel::openVaultFromSettings,
             ) {
-                Icon(
-                    Lucide.Lock,
-                    contentDescription = null,
-                    tint = colors.faint,
-                    modifier = Modifier.size(16.dp),
-                )
+                if (vaultUnlocked) {
+                    // The only trace of an open vault: a quiet green dot here.
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .background(colors.accent, CircleShape),
+                    )
+                    Spacer(Modifier.size(10.dp))
+                    IconButton(onClick = vaultViewModel::lock) {
+                        Icon(
+                            Lucide.LockOpen,
+                            contentDescription = stringResource(R.string.vault_lock_action),
+                            tint = colors.accent,
+                            modifier = Modifier.size(16.dp),
+                        )
+                    }
+                } else {
+                    Icon(
+                        Lucide.Lock,
+                        contentDescription = null,
+                        tint = colors.faint,
+                        modifier = Modifier.size(16.dp),
+                    )
+                }
             }
             SettingRow(
                 name = stringResource(R.string.settings_manage_tags),

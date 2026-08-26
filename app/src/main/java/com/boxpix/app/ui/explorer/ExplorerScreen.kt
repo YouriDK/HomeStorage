@@ -80,7 +80,6 @@ import com.boxpix.app.ui.explorer.ExplorerViewModel.AlbumUi
 import com.boxpix.app.ui.icons.Lucide
 import com.boxpix.app.ui.theme.Hues
 import com.boxpix.app.ui.theme.boxpixColors
-import com.boxpix.app.ui.vault.VaultViewModel
 
 @Composable
 fun ExplorerScreen(
@@ -88,7 +87,6 @@ fun ExplorerScreen(
     onOpenViewer: () -> Unit,
     onOpenSearch: () -> Unit,
     viewModel: ExplorerViewModel = hiltViewModel(),
-    vaultViewModel: VaultViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val vaultLabel = stringResource(R.string.vault_title)
@@ -164,13 +162,6 @@ fun ExplorerScreen(
                     onSortSelected = viewModel::setSort,
                     newFolderEnabled = !state.offline,
                     onNewFolder = { showNewFolderDialog = true },
-                )
-            }
-
-            if (state.vault == VaultState.Unlocked) {
-                VaultUnlockedBanner(
-                    onEnter = { viewModel.openVault(vaultLabel) },
-                    onLock = vaultViewModel::lock,
                 )
             }
 
@@ -858,48 +849,6 @@ private fun MediaCell(
             )
         }
         if (selected) SelectionCheck(Modifier.align(Alignment.TopEnd))
-    }
-}
-
-/**
- * Discreet persistent reminder that decrypted content is reachable — only
- * ever shown while unlocked. Tapping it walks (back) into the vault.
- */
-@Composable
-private fun VaultUnlockedBanner(onEnter: () -> Unit, onLock: () -> Unit) {
-    val colors = boxpixColors
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 14.dp, vertical = 4.dp)
-            .background(colors.elevated, RoundedCornerShape(10.dp))
-            .padding(start = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(
-            Lucide.LockOpen,
-            contentDescription = null,
-            tint = colors.accent,
-            modifier = Modifier.size(14.dp),
-        )
-        Spacer(Modifier.size(8.dp))
-        Text(
-            text = stringResource(R.string.vault_banner_unlocked),
-            style = MaterialTheme.typography.bodySmall,
-            color = colors.text,
-            modifier = Modifier
-                .weight(1f)
-                .clickable(onClick = onEnter)
-                .padding(vertical = 12.dp),
-        )
-        IconButton(onClick = onLock) {
-            Icon(
-                Lucide.Lock,
-                contentDescription = stringResource(R.string.vault_lock_action),
-                tint = colors.dim,
-                modifier = Modifier.size(16.dp),
-            )
-        }
     }
 }
 

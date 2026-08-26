@@ -322,7 +322,6 @@
     <string name="vault_remember_prompt_title">Remember vault key</string>
     <string name="vault_use_passphrase">Use passphrase</string>
     <string name="vault_biometrics_invalidated">Biometrics changed — enter your passphrase to re-enable them.</string>
-    <string name="vault_banner_unlocked">Vault unlocked</string>
     <string name="vault_lock_action">Lock vault</string>
     <string name="trash_vault_section">Vault trash</string>
     <string name="error_vault_locked">The vault is locked.</string>

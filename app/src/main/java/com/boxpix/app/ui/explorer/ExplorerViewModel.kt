@@ -161,17 +161,19 @@ class ExplorerViewModel @Inject constructor(
             if (root != null) load(initial = true)
         }
         viewModelScope.launch {
-            // Seeded with the CURRENT state: a ViewModel recreated while the
-            // vault is already open (disk switch) must not fake a transition.
-            var lastVault: VaultState = vaultSession.state.value
-            vaultSession.state.collect { vault ->
-                _state.update { it.copy(vault = vault, vaultMount = vaultSession.mountDisplayPath) }
-                if (vault == VaultState.Unlocked && lastVault != VaultState.Unlocked) {
-                    // An unlock just happened (asked from Settings): when this
-                    // screen shows again, it walks straight into the vault.
+            // Explicit one-shot entry requests from the vault session (unlock
+            // succeeded, or the Settings row re-tapped while unlocked).
+            var consumed = vaultSession.entryRequests.value
+            vaultSession.entryRequests.collect { requests ->
+                if (requests > consumed && vaultSession.state.value == VaultState.Unlocked) {
                     _state.update { it.copy(pendingVaultEntry = true) }
                 }
-                lastVault = vault
+                consumed = requests
+            }
+        }
+        viewModelScope.launch {
+            vaultSession.state.collect { vault ->
+                _state.update { it.copy(vault = vault, vaultMount = vaultSession.mountDisplayPath) }
                 val insideVault = _state.value.stack.any { VaultPaths.isVaultPath(it.displayPath) }
                 if (vault != VaultState.Unlocked && insideVault) {
                     // Locked while browsing the vault: back to the disk, nothing
