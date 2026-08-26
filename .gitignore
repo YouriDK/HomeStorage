@@ -21,3 +21,7 @@ docs/
 design_handoff_boxpix/
 kickoff-m1.md
 .claude/
+
+# Release signing — NEVER in git (backup the keystore + password elsewhere!)
+keystore/
+keystore.properties

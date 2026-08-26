@@ -1,4 +1,5 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import java.util.Properties
 
 plugins {
     alias(libs.plugins.android.application)
@@ -32,6 +33,16 @@ val gitSha: String = runCatching {
         .standardOutput.asText.get().trim()
 }.getOrNull()?.takeIf { it.isNotEmpty() } ?: "nogit"
 
+// Release signing stays out of git: keystore.properties + keystore/ are
+// ignored. Without them (CI, fresh clone) the release build is simply unsigned.
+val keystoreProps: Properties? = rootProject.file("keystore.properties")
+    .takeIf { it.exists() }
+    ?.let { file ->
+        val props = Properties()
+        file.inputStream().use { props.load(it) }
+        props
+    }
+
 android {
     namespace = "com.boxpix.app"
     compileSdk = 36
@@ -46,11 +57,23 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        if (keystoreProps != null) {
+            create("release") {
+                storeFile = rootProject.file(keystoreProps.getProperty("storeFile"))
+                storePassword = keystoreProps.getProperty("storePassword")
+                keyAlias = keystoreProps.getProperty("keyAlias")
+                keyPassword = keystoreProps.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            if (keystoreProps != null) signingConfig = signingConfigs.getByName("release")
         }
     }
 
