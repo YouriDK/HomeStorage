@@ -58,6 +58,24 @@ class VaultViewModel @Inject constructor(
     private val _sheet = MutableStateFlow(SheetUi())
     val sheet: StateFlow<SheetUi> = _sheet.asStateFlow()
 
+    private val _settingsProbeFailed = MutableStateFlow(false)
+    val settingsProbeFailed: StateFlow<Boolean> = _settingsProbeFailed.asStateFlow()
+
+    /**
+     * The Settings entry point: probes `<configured root>/.vault` on demand,
+     * then opens the unlock sheet — or reports that nothing is there.
+     */
+    fun openVaultFromSettings() {
+        viewModelScope.launch {
+            _settingsProbeFailed.value = false
+            when (session.probe()) {
+                VaultState.Unlocked -> Unit // already open; the Explorer banner leads back in
+                VaultState.Locked -> openSheet()
+                else -> _settingsProbeFailed.value = true
+            }
+        }
+    }
+
     fun openSheet() {
         _sheet.value = SheetUi(
             visible = true,

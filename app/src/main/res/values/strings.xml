@@ -244,6 +244,7 @@
     <string name="settings_grid_columns">Grid columns</string>
     <string name="settings_grid_columns_hint">Explorer albums · photo grids add one</string>
     <string name="settings_group_trash">Trash</string>
+    <string name="settings_group_files">Files</string>
     <string name="settings_trash_row">Trash</string>
     <string name="settings_trash_auto">Auto purge after 30 days</string>
     <string name="settings_group_connection">Connection</string>
@@ -306,7 +307,7 @@
     <!-- Vault (M8) -->
     <string name="vault_title">Vault</string>
     <string name="vault_menu_open">Open vault</string>
-    <string name="error_no_vault_here">No vault found in this folder.</string>
+    <string name="error_no_vault_here">No vault found.</string>
     <string name="vault_unlock_title">Unlock vault</string>
     <string name="vault_unlock_subtitle">Enter the vault passphrase</string>
     <string name="vault_unlocking">Unlocking vault…</string>

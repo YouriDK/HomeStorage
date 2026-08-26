@@ -48,9 +48,11 @@ class ThumbFetcher(
 
     override suspend fun fetch(): FetchResult? {
         val bytes = if (VaultPaths.isVaultPath(request.displayPath)) {
+            // Vault: photos AND videos generate on demand — the phone extracts
+            // video posters itself, the worker never enters the vault.
             vaultSession.mountDisplayPath
                 ?.let { VaultPaths.vaultRelative(request.displayPath, it) }
-                ?.let { vaultThumbnails.thumbnail(it, allowGenerate = !request.isVideo) }
+                ?.let { vaultThumbnails.thumbnail(it, allowGenerate = true) }
         } else {
             thumbnails.thumbnail(
                 request.displayPath,

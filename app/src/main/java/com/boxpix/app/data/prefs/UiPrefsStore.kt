@@ -11,18 +11,12 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
-import kotlinx.serialization.encodeToString
 import javax.inject.Inject
 import javax.inject.Singleton
 
 private val Context.uiPrefsDataStore by preferencesDataStore(name = "ui_prefs")
 
-private val prefsJson = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
-
 enum class SortOrder { NAME, DATE, SIZE }
-
-@kotlinx.serialization.Serializable
-data class PinnedDestination(val pathB64: String, val name: String)
 
 /** UI preferences: grid density, per-folder sort, and the debug fake/real switch. */
 @Singleton
@@ -51,34 +45,6 @@ class UiPrefsStore @Inject constructor(
 
     suspend fun setSortFor(folderPathB64: String, order: SortOrder) {
         context.uiPrefsDataStore.edit { it[sortKey(folderPathB64)] = order.name }
-    }
-
-    /** Sort mode: pinned destination folders, ordered, per provider. */
-    fun pinnedDestinations(providerId: String): Flow<List<PinnedDestination>> =
-        context.uiPrefsDataStore.data.map { prefs ->
-            prefs[stringPreferencesKey("sort_dests_$providerId")]
-                ?.let { runCatching { prefsJson.decodeFromString<List<PinnedDestination>>(it) }.getOrNull() }
-                .orEmpty()
-        }.distinctUntilChanged()
-
-    suspend fun setPinnedDestinations(providerId: String, destinations: List<PinnedDestination>) {
-        context.uiPrefsDataStore.edit {
-            it[stringPreferencesKey("sort_dests_$providerId")] = prefsJson.encodeToString(destinations)
-        }
-    }
-
-    /** Sort mode: the editable quick-tag names, ordered, per provider. */
-    fun quickTags(providerId: String): Flow<List<String>> =
-        context.uiPrefsDataStore.data.map { prefs ->
-            prefs[stringPreferencesKey("quick_tags_$providerId")]
-                ?.let { runCatching { prefsJson.decodeFromString<List<String>>(it) }.getOrNull() }
-                .orEmpty()
-        }.distinctUntilChanged()
-
-    suspend fun setQuickTags(providerId: String, tags: List<String>) {
-        context.uiPrefsDataStore.edit {
-            it[stringPreferencesKey("quick_tags_$providerId")] = prefsJson.encodeToString(tags)
-        }
     }
 
     /**

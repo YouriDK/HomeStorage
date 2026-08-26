@@ -58,6 +58,7 @@ fun SettingsScreen(
     onOpenTags: () -> Unit,
     onOpenWorker: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel(),
+    vaultViewModel: com.boxpix.app.ui.vault.VaultViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val exportUri by viewModel.exportUri.collectAsStateWithLifecycle()
@@ -230,7 +231,50 @@ fun SettingsScreen(
             }
             HairlineDivider()
 
-            GroupLabel(stringResource(R.string.settings_group_scan))
+            GroupLabel(stringResource(R.string.settings_group_files))
+            val vaultProbeFailed by vaultViewModel.settingsProbeFailed.collectAsStateWithLifecycle()
+            SettingRow(
+                name = stringResource(R.string.vault_menu_open),
+                sub = if (vaultProbeFailed) stringResource(R.string.error_no_vault_here) else null,
+                onClick = vaultViewModel::openVaultFromSettings,
+            ) {
+                Icon(
+                    Lucide.Lock,
+                    contentDescription = null,
+                    tint = colors.faint,
+                    modifier = Modifier.size(16.dp),
+                )
+            }
+            SettingRow(
+                name = stringResource(R.string.settings_manage_tags),
+                sub = null,
+                onClick = onOpenTags,
+            ) {
+                Icon(
+                    Lucide.ChevronRight,
+                    contentDescription = null,
+                    tint = colors.faint,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+            SettingRow(
+                name = stringResource(R.string.settings_trash_row),
+                sub = stringResource(R.string.settings_trash_auto),
+                onClick = onOpenTrash,
+            ) {
+                Text(
+                    text = pluralStringResource(R.plurals.explorer_items_count, state.trashCount, state.trashCount),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.dim,
+                )
+                Spacer(Modifier.size(4.dp))
+                Icon(
+                    Lucide.ChevronRight,
+                    contentDescription = null,
+                    tint = colors.faint,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
             val excludedFolders by viewModel.excludedFolders.collectAsStateWithLifecycle()
             if (excludedFolders.isEmpty()) {
                 SettingRow(
@@ -250,42 +294,6 @@ fun SettingsScreen(
                         }
                     }
                 }
-            }
-            HairlineDivider()
-
-            GroupLabel(stringResource(R.string.tag_picker_title))
-            SettingRow(
-                name = stringResource(R.string.settings_manage_tags),
-                sub = null,
-                onClick = onOpenTags,
-            ) {
-                Icon(
-                    Lucide.ChevronRight,
-                    contentDescription = null,
-                    tint = colors.faint,
-                    modifier = Modifier.size(18.dp),
-                )
-            }
-            HairlineDivider()
-
-            GroupLabel(stringResource(R.string.settings_group_trash))
-            SettingRow(
-                name = stringResource(R.string.settings_trash_row),
-                sub = stringResource(R.string.settings_trash_auto),
-                onClick = onOpenTrash,
-            ) {
-                Text(
-                    text = pluralStringResource(R.plurals.explorer_items_count, state.trashCount, state.trashCount),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = colors.dim,
-                )
-                Spacer(Modifier.size(4.dp))
-                Icon(
-                    Lucide.ChevronRight,
-                    contentDescription = null,
-                    tint = colors.faint,
-                    modifier = Modifier.size(18.dp),
-                )
             }
             HairlineDivider()
 
@@ -358,6 +366,9 @@ fun SettingsScreen(
             onDismiss = { showExportPassphrase = false },
         )
     }
+
+    // The unlock sheet lives here now — the vault entry point is a Settings row.
+    com.boxpix.app.ui.vault.VaultUnlockSheet(vaultViewModel)
 }
 
 @Composable

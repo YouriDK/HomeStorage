@@ -36,6 +36,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -79,7 +80,6 @@ import com.boxpix.app.ui.explorer.ExplorerViewModel.AlbumUi
 import com.boxpix.app.ui.icons.Lucide
 import com.boxpix.app.ui.theme.Hues
 import com.boxpix.app.ui.theme.boxpixColors
-import com.boxpix.app.ui.vault.VaultUnlockSheet
 import com.boxpix.app.ui.vault.VaultViewModel
 
 @Composable
@@ -87,7 +87,6 @@ fun ExplorerScreen(
     onOpenSettings: () -> Unit,
     onOpenViewer: () -> Unit,
     onOpenSearch: () -> Unit,
-    onOpenSortMode: () -> Unit,
     viewModel: ExplorerViewModel = hiltViewModel(),
     vaultViewModel: VaultViewModel = hiltViewModel(),
 ) {
@@ -106,6 +105,10 @@ fun ExplorerScreen(
     LifecycleResumeEffect(Unit) {
         if (firstResume) firstResume = false else viewModel.reload()
         onPauseOrDispose { }
+    }
+
+    LaunchedEffect(state.pendingVaultEntry) {
+        if (state.pendingVaultEntry) viewModel.consumeVaultEntry(vaultLabel)
     }
 
     var showNewFolderDialog by remember { mutableStateOf(false) }
@@ -155,12 +158,6 @@ fun ExplorerScreen(
                         viewModel.stageSearch()
                         onOpenSearch()
                     },
-                    onOpenSortMode = {
-                        if (viewModel.stageSortMode()) onOpenSortMode()
-                    },
-                    onOpenVault = {
-                        viewModel.openVaultRequested(vaultLabel) { vaultViewModel.openSheet() }
-                    },
                 )
                 SortRow(
                     sort = state.sort,
@@ -209,7 +206,6 @@ fun ExplorerScreen(
         }
     }
 
-    VaultUnlockSheet(vaultViewModel)
 
     if (showMetadataSheet) {
         val vaultTagsForSheet by viewModel.vaultTags.collectAsStateWithLifecycle()
@@ -329,11 +325,8 @@ private fun ExplorerTopBar(
     onBack: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenSearch: () -> Unit,
-    onOpenSortMode: () -> Unit,
-    onOpenVault: () -> Unit,
 ) {
     val colors = boxpixColors
-    var menuOpen by remember { mutableStateOf(false) }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -378,16 +371,6 @@ private fun ExplorerTopBar(
             state.connection == ConnectionMode.REMOTE -> Badge(stringResource(R.string.badge_remote), dot = false)
         }
         Spacer(Modifier.size(4.dp))
-        if (state.media.isNotEmpty() && !state.offline && !state.inVault) {
-            IconButton(onClick = onOpenSortMode) {
-                Icon(
-                    Lucide.Hand,
-                    contentDescription = stringResource(R.string.sort_title, state.current?.name.orEmpty()),
-                    tint = colors.dim,
-                    modifier = Modifier.size(22.dp),
-                )
-            }
-        }
         IconButton(onClick = onOpenSearch) {
             Icon(
                 Lucide.Search,
@@ -403,33 +386,6 @@ private fun ExplorerTopBar(
                 tint = colors.dim,
                 modifier = Modifier.size(22.dp),
             )
-        }
-        // Discreet by design: the vault entry lives in an overflow menu and
-        // nothing on screen ever hints that a vault exists until it is opened.
-        Box {
-            IconButton(onClick = { menuOpen = true }) {
-                Icon(
-                    Lucide.EllipsisVertical,
-                    contentDescription = null,
-                    tint = colors.dim,
-                    modifier = Modifier.size(22.dp),
-                )
-            }
-            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                DropdownMenuItem(
-                    text = {
-                        Text(
-                            stringResource(R.string.vault_menu_open),
-                            color = colors.text,
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                    },
-                    onClick = {
-                        menuOpen = false
-                        onOpenVault()
-                    },
-                )
-            }
         }
     }
 }

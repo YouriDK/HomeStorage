@@ -16,7 +16,6 @@ import com.boxpix.app.ui.onboarding.OnboardingScreen
 import com.boxpix.app.ui.search.SearchScreen
 import com.boxpix.app.ui.settings.ManageTagsScreen
 import com.boxpix.app.ui.settings.SettingsScreen
-import com.boxpix.app.ui.sortmode.SortModeScreen
 import com.boxpix.app.ui.theme.boxpixColors
 import com.boxpix.app.ui.trash.TrashScreen
 import com.boxpix.app.ui.viewer.ViewerScreen
@@ -47,7 +46,6 @@ private fun MainNavHost() {
                 onOpenSettings = { nav.navigate("settings") },
                 onOpenViewer = { nav.navigate("viewer") },
                 onOpenSearch = { nav.navigate("search") },
-                onOpenSortMode = { nav.navigate("sortmode") },
             )
         }
         composable("viewer") {
@@ -58,9 +56,6 @@ private fun MainNavHost() {
                 onBack = { nav.popBackStack() },
                 onOpenViewer = { nav.navigate("viewer") },
             )
-        }
-        composable("sortmode") {
-            SortModeScreen(onBack = { nav.popBackStack() })
         }
         composable("settings") {
             SettingsScreen(

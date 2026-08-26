@@ -3,6 +3,7 @@ package com.boxpix.app.data.vault
 import com.boxpix.app.core.FbxResult
 import com.boxpix.app.data.freebox.api.PathCodec
 import com.boxpix.app.data.media.MediaProcessor
+import com.boxpix.app.data.media.MediaTypes
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.util.concurrent.ConcurrentHashMap
@@ -11,7 +12,9 @@ import java.util.concurrent.ConcurrentHashMap
  * Thumbnails for vault media, served from the vault's INTERNAL `/.thumbs/`
  * mirror — encrypted like everything else, generated on demand for visible
  * cells only, and only while unlocked. No WorkManager, no work_queue row
- * (M8 Room invariant): the worker never sees the vault.
+ * (M8 Room invariant): the worker never sees the vault — vault VIDEO posters
+ * are extracted by the phone itself through the decrypting random-access
+ * handle.
  *
  * Same contract as the clear pipeline: one download of the original serves
  * both the 512 px WebP sidecar and the EXIF capture date (kept in the
@@ -21,6 +24,7 @@ class VaultThumbnails(
     private val session: VaultSession,
     private val meta: VaultMetaRepository,
     private val processor: MediaProcessor,
+    private val frameExtractor: VaultFrameExtractor,
 ) {
 
     private val inFlight = ConcurrentHashMap<String, Mutex>()
@@ -31,7 +35,7 @@ class VaultThumbnails(
         provider.download(PathCodec.encode(sidecar)).getOrNull()
             ?.takeIf { it.isNotEmpty() }
             ?.let { return it }
-        if (!allowGenerate) return null // video posters need the worker: not in the vault
+        if (!allowGenerate) return null
         return generate(provider, relativePath, sidecar)
     }
 
@@ -41,16 +45,29 @@ class VaultThumbnails(
         sidecarPath: String,
     ): ByteArray? = inFlight.getOrPut(relativePath) { Mutex() }.withLock {
         try {
-            val original = provider.download(PathCodec.encode(relativePath)).getOrNull() ?: return null
-
-            processor.readTakenAtEpochSeconds(original)?.let { takenAt ->
-                meta.updateEntry(relativePath) { entry ->
-                    if (entry.takenAtManual || entry.takenAtEpochSeconds != null) entry
-                    else entry.copy(takenAtEpochSeconds = takenAt)
+            val thumb = if (MediaTypes.isVideo(relativePath.substringAfterLast('/'))) {
+                // Vault videos: the PHONE extracts the poster (owner's decision —
+                // the worker never enters the vault). Chunk-aligned decrypting
+                // reads, no full download.
+                val handle = provider.openFile(PathCodec.encode(relativePath)).getOrNull()
+                    ?: return null
+                val extraction = frameExtractor.extract(handle) ?: return null
+                extraction.durationSeconds?.let { duration ->
+                    meta.updateEntry(relativePath) { it.copy(durationSeconds = duration) }
                 }
+                extraction.thumbWebp
+            } else {
+                val original = provider.download(PathCodec.encode(relativePath)).getOrNull()
+                    ?: return null
+                processor.readTakenAtEpochSeconds(original)?.let { takenAt ->
+                    meta.updateEntry(relativePath) { entry ->
+                        if (entry.takenAtManual || entry.takenAtEpochSeconds != null) entry
+                        else entry.copy(takenAtEpochSeconds = takenAt)
+                    }
+                }
+                processor.makeThumbnail(original) ?: return null
             }
 
-            val thumb = processor.makeThumbnail(original) ?: return null
             val sidecarDir = sidecarPath.substringBeforeLast('/')
             mkdirs(provider, sidecarDir)
             val uploaded = provider.upload(

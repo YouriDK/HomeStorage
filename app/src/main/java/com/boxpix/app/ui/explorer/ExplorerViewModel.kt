@@ -29,7 +29,6 @@ import com.boxpix.app.data.vault.VaultSession
 import com.boxpix.app.data.vault.VaultState
 import kotlinx.coroutines.flow.combine
 import com.boxpix.app.ui.search.SearchContext
-import com.boxpix.app.ui.sortmode.SortSession
 import com.boxpix.app.ui.viewer.ViewerSession
 import com.boxpix.app.ui.viewer.toMediaRef
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -59,7 +58,6 @@ class ExplorerViewModel @Inject constructor(
     private val protection: ProtectionRepository,
     private val scanExclusion: ScanExclusionRepository,
     private val tagRepository: TagRepository,
-    private val sortSession: SortSession,
     private val searchContext: SearchContext,
     private val mediaDao: MediaDao,
     private val resolver: EndpointResolver,
@@ -136,6 +134,8 @@ class ExplorerViewModel @Inject constructor(
         /** M8: the disk's vault, when one exists. */
         val vault: VaultState = VaultState.NoVault,
         val vaultMount: String? = null,
+        /** An unlock just succeeded: the screen walks into the vault once. */
+        val pendingVaultEntry: Boolean = false,
     ) {
         val current: FolderRef? get() = stack.lastOrNull() ?: root
         val depth: Int get() = stack.size
@@ -161,16 +161,15 @@ class ExplorerViewModel @Inject constructor(
             if (root != null) load(initial = true)
         }
         viewModelScope.launch {
+            var lastVault: VaultState = VaultState.NoVault
             vaultSession.state.collect { vault ->
                 _state.update { it.copy(vault = vault, vaultMount = vaultSession.mountDisplayPath) }
-                if (vault == VaultState.Unlocked) {
-                    // Discreet entry flow: the unlock this screen asked for
-                    // just succeeded — walk straight into the vault.
-                    pendingVaultLabel?.let { label ->
-                        pendingVaultLabel = null
-                        openVault(label)
-                    }
+                if (vault == VaultState.Unlocked && lastVault != VaultState.Unlocked) {
+                    // An unlock just happened (asked from Settings): when this
+                    // screen shows again, it walks straight into the vault.
+                    _state.update { it.copy(pendingVaultEntry = true) }
                 }
+                lastVault = vault
                 val insideVault = _state.value.stack.any { VaultPaths.isVaultPath(it.displayPath) }
                 if (vault != VaultState.Unlocked && insideVault) {
                     // Locked while browsing the vault: back to the disk, nothing
@@ -295,41 +294,17 @@ class ExplorerViewModel @Inject constructor(
         }
     }
 
-    /** True when the current folder was staged for sort mode. */
-    fun stageSortMode(): Boolean {
-        val folder = _state.value.current ?: return false
-        val medias = _state.value.media.map { it.toMediaRef() }
-        if (medias.isEmpty()) return false
-        sortSession.open(folder, medias)
-        return true
-    }
-
     fun stageSearch() {
         searchContext.folder = _state.value.current
     }
 
     // Navigation
 
-    private var pendingVaultLabel: String? = null
-
-    /**
-     * Discreet vault entry (no tile, nothing advertised): probes the CURRENT
-     * folder for a `.vault` on demand. Found and unlocked -> walk in; found
-     * and locked -> [onLocked] (the unlock sheet), entry resumed on success;
-     * nothing there -> a plain inline message.
-     */
-    fun openVaultRequested(label: String, onLocked: () -> Unit) {
-        val current = _state.value.current ?: return
-        viewModelScope.launch {
-            when (vaultSession.probe(current.displayPath)) {
-                VaultState.Unlocked -> openVault(label)
-                VaultState.Locked -> {
-                    pendingVaultLabel = label
-                    onLocked()
-                }
-                else -> _state.update { it.copy(error = FreeboxError.Api(ERROR_NO_VAULT_HERE)) }
-            }
-        }
+    /** One-shot follow-up of an unlock asked from Settings. */
+    fun consumeVaultEntry(label: String) {
+        if (!_state.value.pendingVaultEntry) return
+        _state.update { it.copy(pendingVaultEntry = false) }
+        openVault(label)
     }
 
     /** Enters the unlocked vault; [label] is the localized folder name. */
@@ -733,7 +708,6 @@ class ExplorerViewModel @Inject constructor(
 
     companion object {
         const val ERROR_PROTECTED = "protected_folder"
-        const val ERROR_NO_VAULT_HERE = "no_vault_here"
         private const val FAKE_ROOT = "/Photos"
         private const val WAKE_HINT_DELAY_MS = 2_500L
     }

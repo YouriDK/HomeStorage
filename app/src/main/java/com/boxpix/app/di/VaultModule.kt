@@ -3,6 +3,7 @@ package com.boxpix.app.di
 import com.boxpix.app.data.media.MediaProcessor
 import com.boxpix.app.data.storage.RootLocator
 import com.boxpix.app.data.storage.StorageProvider
+import com.boxpix.app.data.vault.AndroidVaultFrameExtractor
 import com.boxpix.app.data.vault.AndroidVaultKeyStore
 import com.boxpix.app.data.vault.VaultAutoLock
 import com.boxpix.app.data.vault.VaultKeyStore
@@ -49,7 +50,8 @@ object VaultModule {
         session: VaultSession,
         meta: VaultMetaRepository,
         processor: MediaProcessor,
-    ): VaultThumbnails = VaultThumbnails(session, meta, processor)
+    ): VaultThumbnails =
+        VaultThumbnails(session, meta, processor, AndroidVaultFrameExtractor())
 
     @Provides
     @Singleton

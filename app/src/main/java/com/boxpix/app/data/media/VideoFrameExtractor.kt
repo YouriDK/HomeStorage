@@ -28,15 +28,18 @@ class AndroidVideoFrameExtractor @Inject constructor() : VideoFrameExtractor {
             val frame = retriever.getFrameAtTime(1_000_000, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
                 ?: retriever.getFrameAtTime(-1)
                 ?: return null
-            VideoFrameExtractor.Extraction(toWebpThumb(frame), durationSeconds)
+            VideoFrameExtractor.Extraction(VideoPoster.toWebpThumb(frame), durationSeconds)
         } catch (_: Exception) {
             null
         } finally {
             runCatching { retriever.release() }
         }
     }
+}
 
-    private fun toWebpThumb(frame: Bitmap): ByteArray {
+/** 512 px WebP poster, shared by the worker and the in-vault video thumbs. */
+object VideoPoster {
+    fun toWebpThumb(frame: Bitmap): ByteArray {
         val scale = THUMB_SIZE.toFloat() / maxOf(frame.width, frame.height)
         val thumb = if (scale < 1f) {
             Bitmap.createScaledBitmap(
@@ -63,8 +66,6 @@ class AndroidVideoFrameExtractor @Inject constructor() : VideoFrameExtractor {
         return bytes
     }
 
-    private companion object {
-        const val THUMB_SIZE = 512
-        const val THUMB_QUALITY = 80
-    }
+    private const val THUMB_SIZE = 512
+    private const val THUMB_QUALITY = 80
 }

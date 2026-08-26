@@ -169,7 +169,7 @@ class VaultWriteTest {
     fun `vault thumbnails live in the internal mirror only`() = runTest(timeout = 60.seconds) {
         val env = unlocked()
         val processor = CountingProcessor()
-        val thumbs = VaultThumbnails(env.session, env.meta, processor)
+        val thumbs = VaultThumbnails(env.session, env.meta, processor) { null }
 
         val first = thumbs.thumbnail("/photo.jpg", allowGenerate = true)
         assertArrayEquals(byteArrayOf(9, 9, 9), first)
@@ -186,9 +186,45 @@ class VaultWriteTest {
         assertEquals(1_700_000_000L, entry.takenAtEpochSeconds)
         assertTrue(findName(env.fake, "/Photos", "photo.jpg.webp").isEmpty())
 
-        // Videos never generate (worker-only outside, nothing inside).
+        // Videos never generate when the fetcher says so (e.g. locked flows).
         assertEquals(null, thumbs.thumbnail("/nope.mp4", allowGenerate = false))
     }
+
+    @Test
+    fun `vault video posters are extracted by the phone into the internal mirror`() =
+        runTest(timeout = 60.seconds) {
+            val env = unlocked()
+            // A multi-chunk "video" dropped straight into the vault's physical root.
+            val clip = ByteArray(80_000) { (it * 3).toByte() }
+            val rootPhysical = VaultFormat.physicalDirPath(
+                "/Photos/.vault",
+                VaultFixture.hashDirectoryId(VaultFormat.ROOT_DIR_ID),
+            )
+            env.fake.upload(
+                PathCodec.encode(rootPhysical),
+                VaultFixture.encryptedName("clip.mp4", VaultFormat.ROOT_DIR_ID),
+                VaultFixture.encryptContent(clip),
+            )
+            env.meta.reconcile()
+
+            val poster = byteArrayOf(7, 7, 7)
+            val thumbs = VaultThumbnails(env.session, env.meta, CountingProcessor()) { handle ->
+                // The extractor really gets random access to the decrypted bytes.
+                val head = kotlinx.coroutines.runBlocking { handle.read(0, 16) }
+                check(head.contentEquals(clip.copyOfRange(0, 16)))
+                com.boxpix.app.data.media.VideoFrameExtractor.Extraction(poster, 42L)
+            }
+
+            assertArrayEquals(poster, thumbs.thumbnail("/clip.mp4", allowGenerate = true))
+            val entry = env.meta.entries.value.first { it.path == "/clip.mp4" }
+            assertTrue(entry.hasThumb)
+            assertEquals(42L, entry.durationSeconds)
+            // Served from the encrypted internal sidecar afterwards.
+            val vault = env.session.provider!!
+            val sidecar = vault.download(PathCodec.encode("/.thumbs/clip.mp4.webp"))
+            assertArrayEquals(poster, (sidecar as FbxResult.Ok).value)
+            assertTrue(findName(env.fake, "/Photos", "clip.mp4.webp").isEmpty())
+        }
 
     private suspend fun findName(fake: FakeStorageProvider, under: String, name: String): List<String> {
         val found = ArrayList<String>()
