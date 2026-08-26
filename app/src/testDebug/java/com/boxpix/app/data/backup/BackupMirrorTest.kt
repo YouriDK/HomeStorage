@@ -3,7 +3,6 @@ package com.boxpix.app.data.backup
 import com.boxpix.app.core.FbxResult
 import com.boxpix.app.data.fake.FakeStorageProvider
 import com.boxpix.app.data.freebox.api.PathCodec
-import com.boxpix.app.data.storage.RootLocator
 import com.boxpix.app.data.vault.VaultFixture
 import com.boxpix.app.data.vault.VaultFormat
 import kotlinx.coroutines.CoroutineScope
@@ -24,12 +23,17 @@ import kotlin.time.Duration.Companion.seconds
 class BackupMirrorTest {
 
     private class MemoryConfig(var root: Pair<String, String>?) : BackupConfig {
+        var source: Pair<String, String>? = PathCodec.encode("/Photos") to "/Photos"
         var lastAt: Long? = null
+        var earliestHour: Int = -1
+        override suspend fun backupSource() = source
         override suspend fun backupRoot() = root
         override suspend fun lastBackupAtEpochSeconds() = lastAt
         override suspend fun setLastBackupAt(epochSeconds: Long) {
             lastAt = epochSeconds
         }
+
+        override suspend fun earliestStartHour() = earliestHour
     }
 
     private class SteppingClock(private var now: Instant = Instant.ofEpochSecond(1_700_000_000)) : Clock() {
@@ -51,7 +55,6 @@ class BackupMirrorTest {
         val mirror = BackupMirror(
             fake,
             config,
-            RootLocator { PathCodec.encode("/Photos") },
             clock,
             CoroutineScope(Dispatchers.Unconfined),
         )
@@ -130,4 +133,34 @@ class BackupMirrorTest {
         env.config.root = PathCodec.encode("/Photos/Backup") to "/Photos/Backup"
         assertNull(env.mirror.run())
     }
+
+    @Test
+    fun `unset source refuses to run — the app root is never a fallback`() =
+        runTest(timeout = 60.seconds) {
+            val env = Env()
+            prepare(env)
+
+            env.config.source = null
+            assertNull(env.mirror.run())
+            assertFalse(env.mirror.runIfDue())
+
+            env.config.source = PathCodec.encode("/Photos") to "/Photos"
+            assertNotNull(env.mirror.run())
+        }
+
+    @Test
+    fun `earliest hour gates the scheduled pass but never the manual one`() =
+        runTest(timeout = 60.seconds) {
+            val env = Env()
+            prepare(env)
+
+            // The stepping clock starts at 22:13 UTC.
+            env.config.earliestHour = 23
+            assertFalse(env.mirror.runIfDue()) // due, but too early in the day
+            assertNotNull(env.mirror.run()) // "Back up now" ignores the schedule
+
+            env.clock.advanceSeconds(BackupMirror.WEEKLY_SECONDS + 1)
+            env.config.earliestHour = 22
+            assertTrue(env.mirror.runIfDue()) // due and past the start hour
+        }
 }

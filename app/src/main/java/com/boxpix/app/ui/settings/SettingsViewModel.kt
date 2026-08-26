@@ -176,21 +176,29 @@ class SettingsViewModel @Inject constructor(
     val exportUri: StateFlow<Uri?> = _exportUri.asStateFlow()
 
     fun setGridColumns(columns: Int) = launch { uiPrefs.setGridColumns(columns) }
-    // Backup mirror (weekly worker pass + manual runs)
+    // Backup mirror (scheduled worker pass + manual runs)
+    val backupSource = uiPrefs.backupSource
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
     val backupRoot = uiPrefs.backupRoot
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
     val lastBackupAt = uiPrefs.lastBackupAtEpochSeconds
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
     val backupIntervalDays = uiPrefs.backupIntervalDays
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 7L)
+    val backupEarliestHour = uiPrefs.backupEarliestHour
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), -1)
 
     fun setBackupIntervalDays(days: Long) = launch { uiPrefs.setBackupIntervalDays(days) }
+    fun setBackupEarliestHour(hour: Int) = launch { uiPrefs.setBackupEarliestHour(hour) }
 
     val backupRunning = backupMirror.running
     val backupReport = backupMirror.lastReport
 
-    /** Backup destination picker: a small folder browser over the disk. */
+    enum class BackupPickTarget { SOURCE, DESTINATION }
+
+    /** Backup folder picker (source or destination): a small browser over the disk. */
     data class BackupBrowse(
+        val target: BackupPickTarget,
         val stack: List<com.boxpix.app.data.storage.StorageEntry> = emptyList(),
         val folders: List<com.boxpix.app.data.storage.StorageEntry> = emptyList(),
         val loading: Boolean = true,
@@ -202,8 +210,8 @@ class SettingsViewModel @Inject constructor(
         kotlinx.coroutines.flow.MutableStateFlow<BackupBrowse?>(null)
     val backupBrowse: kotlinx.coroutines.flow.StateFlow<BackupBrowse?> = _backupBrowse
 
-    fun openBackupPicker() {
-        _backupBrowse.value = BackupBrowse()
+    fun openBackupPicker(target: BackupPickTarget) {
+        _backupBrowse.value = BackupBrowse(target)
         backupBrowseList(null)
     }
 
@@ -225,10 +233,14 @@ class SettingsViewModel @Inject constructor(
         backupBrowseList(stack.lastOrNull()?.pathB64)
     }
 
-    /** Confirms the folder currently browsed as the mirror destination. */
+    /** Confirms the folder currently browsed as the picker's target. */
     fun chooseBackupHere() = launch {
-        val chosen = _backupBrowse.value?.current ?: return@launch
-        uiPrefs.setBackupRoot(chosen.pathB64, chosen.displayPath)
+        val browse = _backupBrowse.value ?: return@launch
+        val chosen = browse.current ?: return@launch
+        when (browse.target) {
+            BackupPickTarget.SOURCE -> uiPrefs.setBackupSource(chosen.pathB64, chosen.displayPath)
+            BackupPickTarget.DESTINATION -> uiPrefs.setBackupRoot(chosen.pathB64, chosen.displayPath)
+        }
         _backupBrowse.value = null
     }
 

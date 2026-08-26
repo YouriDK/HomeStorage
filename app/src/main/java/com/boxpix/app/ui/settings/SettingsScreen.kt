@@ -319,22 +319,19 @@ fun SettingsScreen(
             HairlineDivider()
 
             GroupLabel(stringResource(R.string.settings_group_backup))
+            val backupSource by viewModel.backupSource.collectAsStateWithLifecycle()
             val backupRoot by viewModel.backupRoot.collectAsStateWithLifecycle()
             val lastBackupAt by viewModel.lastBackupAt.collectAsStateWithLifecycle()
             val backupRunning by viewModel.backupRunning.collectAsStateWithLifecycle()
             val backupReport by viewModel.backupReport.collectAsStateWithLifecycle()
-            val sourceRoot = state.connection.rootDisplayPath
+            val backupConfigured = backupSource != null && backupRoot != null
             SettingRow(
-                name = stringResource(R.string.settings_backup_disk),
-                sub = backupRoot?.let { (_, destDisplay) ->
-                    val sourceName = sourceRoot?.trimEnd('/')?.substringAfterLast('/') ?: "?"
-                    stringResource(
-                        R.string.settings_backup_route,
-                        sourceRoot ?: "?",
-                        "$destDisplay/$sourceName",
-                    )
-                } ?: stringResource(R.string.settings_backup_disk_none),
-                onClick = viewModel::openBackupPicker,
+                name = stringResource(R.string.settings_backup_source),
+                sub = backupSource?.second
+                    ?: stringResource(R.string.settings_backup_source_none),
+                onClick = {
+                    viewModel.openBackupPicker(SettingsViewModel.BackupPickTarget.SOURCE)
+                },
             ) {
                 Icon(
                     Lucide.ChevronRight,
@@ -343,7 +340,33 @@ fun SettingsScreen(
                     modifier = Modifier.size(18.dp),
                 )
             }
-            if (backupRoot != null) {
+            SettingRow(
+                name = stringResource(R.string.settings_backup_disk),
+                sub = when {
+                    backupConfigured -> {
+                        val srcDisplay = backupSource!!.second
+                        val sourceName = srcDisplay.trimEnd('/').substringAfterLast('/')
+                        stringResource(
+                            R.string.settings_backup_route,
+                            srcDisplay,
+                            "${backupRoot!!.second}/$sourceName",
+                        )
+                    }
+                    backupRoot != null -> backupRoot!!.second
+                    else -> stringResource(R.string.settings_backup_disk_none)
+                },
+                onClick = {
+                    viewModel.openBackupPicker(SettingsViewModel.BackupPickTarget.DESTINATION)
+                },
+            ) {
+                Icon(
+                    Lucide.ChevronRight,
+                    contentDescription = null,
+                    tint = colors.faint,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+            if (backupConfigured) {
                 val backupInterval by viewModel.backupIntervalDays.collectAsStateWithLifecycle()
                 SettingRow(name = stringResource(R.string.settings_backup_frequency), sub = null) {
                     SegmentedControlText(
@@ -354,6 +377,22 @@ fun SettingsScreen(
                         ),
                         selected = backupInterval.toString(),
                         onSelect = { viewModel.setBackupIntervalDays(it.toLong()) },
+                    )
+                }
+                val backupEarliestHour by viewModel.backupEarliestHour.collectAsStateWithLifecycle()
+                SettingRow(
+                    name = stringResource(R.string.settings_backup_start),
+                    sub = stringResource(R.string.settings_backup_start_hint),
+                ) {
+                    SegmentedControlText(
+                        options = listOf(
+                            "-1" to stringResource(R.string.backup_start_any),
+                            "2" to stringResource(R.string.backup_start_2am),
+                            "6" to stringResource(R.string.backup_start_6am),
+                            "22" to stringResource(R.string.backup_start_10pm),
+                        ),
+                        selected = backupEarliestHour.toString(),
+                        onSelect = { viewModel.setBackupEarliestHour(it.toInt()) },
                     )
                 }
             }
@@ -375,7 +414,7 @@ fun SettingsScreen(
                         }
                     }
                 },
-                onClick = if (backupRoot != null && !backupRunning) viewModel::backUpNow else null,
+                onClick = if (backupConfigured && !backupRunning) viewModel::backUpNow else null,
             ) {
                 if (backupRunning) {
                     androidx.compose.material3.CircularProgressIndicator(
@@ -395,7 +434,13 @@ fun SettingsScreen(
                     containerColor = colors.elevated,
                     shape = RoundedCornerShape(14.dp),
                     title = {
-                        Text(stringResource(R.string.settings_backup_picker_title), color = colors.text)
+                        val title = when (browse.target) {
+                            SettingsViewModel.BackupPickTarget.SOURCE ->
+                                R.string.settings_backup_source_picker_title
+                            SettingsViewModel.BackupPickTarget.DESTINATION ->
+                                R.string.settings_backup_picker_title
+                        }
+                        Text(stringResource(title), color = colors.text)
                     },
                     text = {
                         Column {

@@ -68,6 +68,36 @@ class UiPrefsStore @Inject constructor(
         }
     }
 
+    /** Backup mirror source: fixed and chosen explicitly — never follows the app root. */
+    val backupSource: Flow<Pair<String, String>?> = context.uiPrefsDataStore.data
+        .map { prefs ->
+            val b64 = prefs[KEY_BACKUP_SOURCE_B64]
+            val display = prefs[KEY_BACKUP_SOURCE_DISPLAY]
+            if (b64 != null && display != null) b64 to display else null
+        }
+        .distinctUntilChanged()
+
+    suspend fun setBackupSource(pathB64: String?, displayPath: String?) {
+        context.uiPrefsDataStore.edit {
+            if (pathB64 == null || displayPath == null) {
+                it.remove(KEY_BACKUP_SOURCE_B64)
+                it.remove(KEY_BACKUP_SOURCE_DISPLAY)
+            } else {
+                it[KEY_BACKUP_SOURCE_B64] = pathB64
+                it[KEY_BACKUP_SOURCE_DISPLAY] = displayPath
+            }
+        }
+    }
+
+    /** Local hour of day before which the scheduled backup pass waits; -1 = any time. */
+    val backupEarliestHour: Flow<Int> = context.uiPrefsDataStore.data
+        .map { it[KEY_BACKUP_EARLIEST_HOUR] ?: -1 }
+        .distinctUntilChanged()
+
+    suspend fun setBackupEarliestHour(hour: Int) {
+        context.uiPrefsDataStore.edit { it[KEY_BACKUP_EARLIEST_HOUR] = hour.coerceIn(-1, 23) }
+    }
+
     /** Per-pass worker switches (owner control), ON by default. */
     fun workerPassEnabled(pass: String): Flow<Boolean> = context.uiPrefsDataStore.data
         .map { it[booleanPreferencesKey("worker_pass_$pass")] ?: true }
@@ -195,6 +225,9 @@ class UiPrefsStore @Inject constructor(
         private val KEY_XMP_ENABLED = booleanPreferencesKey("xmp_write_enabled")
         private val KEY_BACKUP_ROOT_B64 = stringPreferencesKey("backup_root_b64")
         private val KEY_BACKUP_ROOT_DISPLAY = stringPreferencesKey("backup_root_display")
+        private val KEY_BACKUP_SOURCE_B64 = stringPreferencesKey("backup_source_b64")
+        private val KEY_BACKUP_SOURCE_DISPLAY = stringPreferencesKey("backup_source_display")
+        private val KEY_BACKUP_EARLIEST_HOUR = intPreferencesKey("backup_earliest_hour")
         private val KEY_LAST_BACKUP_AT = androidx.datastore.preferences.core.longPreferencesKey("last_backup_at")
         private val KEY_BACKUP_INTERVAL_DAYS = androidx.datastore.preferences.core.longPreferencesKey("backup_interval_days")
         private val KEY_WORKER_CYCLE_MINUTES = androidx.datastore.preferences.core.longPreferencesKey("worker_cycle_minutes")

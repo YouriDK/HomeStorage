@@ -257,6 +257,9 @@
     <string name="settings_group_trash">Trash</string>
     <string name="settings_group_files">Files</string>
     <string name="settings_group_backup">Backup</string>
+    <string name="settings_backup_source">Source folder</string>
+    <string name="settings_backup_source_none">Not set — nothing is backed up</string>
+    <string name="settings_backup_source_picker_title">Back up this folder</string>
     <string name="settings_backup_disk">Backup destination</string>
     <string name="settings_backup_disk_none">Not set — new files stay on one disk only</string>
     <string name="settings_backup_now">Back up now</string>
@@ -273,6 +276,12 @@
     <string name="backup_freq_daily">Daily</string>
     <string name="backup_freq_weekly">Weekly</string>
     <string name="backup_freq_monthly">Monthly</string>
+    <string name="settings_backup_start">Start time</string>
+    <string name="settings_backup_start_hint">Scheduled runs wait until this hour</string>
+    <string name="backup_start_any">Any</string>
+    <string name="backup_start_2am">2 am</string>
+    <string name="backup_start_6am">6 am</string>
+    <string name="backup_start_10pm">10 pm</string>
     <string name="worker_cycle_every">Wake up every</string>
     <string name="settings_trash_row">Trash</string>
     <string name="settings_trash_auto">Auto purge after 30 days</string>

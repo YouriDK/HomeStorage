@@ -2,7 +2,6 @@ package com.boxpix.app.data.backup
 
 import com.boxpix.app.core.FbxResult
 import com.boxpix.app.data.freebox.api.PathCodec
-import com.boxpix.app.data.storage.RootLocator
 import com.boxpix.app.data.storage.StorageProvider
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -28,23 +27,31 @@ import java.time.Clock
  *   are mirrored as-is — the backup needs no unlock, ever.
  * - The mirror talks to the RAW disk provider (dot-entries included via the
  *   hidden listing); the destination is `<backup root>/<source folder name>`.
+ * - The SOURCE is a fixed, explicitly chosen folder — it deliberately does NOT
+ *   follow the app's configured root, so re-pointing the app never silently
+ *   changes what gets backed up.
  *
- * Scheduled weekly by the worker; "Back up now" in Settings runs it on demand.
+ * Scheduled by the worker (cadence + earliest start hour); "Back up now" in
+ * Settings runs it on demand regardless of the schedule.
  */
 /** Where the mirror's configuration lives (DataStore in prod, memory in tests). */
 interface BackupConfig {
+    /** The folder being mirrored (b64 path to display path). */
+    suspend fun backupSource(): Pair<String, String>?
     suspend fun backupRoot(): Pair<String, String>?
     suspend fun lastBackupAtEpochSeconds(): Long?
     suspend fun setLastBackupAt(epochSeconds: Long)
 
     /** Cadence in days (1 = daily, 7 = weekly, 30 = monthly). */
     suspend fun intervalDays(): Long = 7L
+
+    /** Local hour of day the scheduled pass waits for; -1 = any time. */
+    suspend fun earliestStartHour(): Int = -1
 }
 
 class BackupMirror(
     private val disk: StorageProvider,
     private val config: BackupConfig,
-    private val rootLocator: RootLocator,
     private val clock: Clock,
     private val scope: kotlinx.coroutines.CoroutineScope,
 ) {
@@ -70,11 +77,15 @@ class BackupMirror(
 
     private val mutex = Mutex()
 
-    /** Worker entry point: runs when configured and the cadence has elapsed. */
+    /** Worker entry point: runs when configured, due, and past the start hour. */
     suspend fun runIfDue(): Boolean {
+        config.backupSource() ?: return false
         config.backupRoot() ?: return false
+        val now = clock.instant()
         val last = config.lastBackupAtEpochSeconds() ?: 0L
-        if (clock.instant().epochSecond - last < config.intervalDays() * 86_400) return false
+        if (now.epochSecond - last < config.intervalDays() * 86_400) return false
+        val earliest = config.earliestStartHour()
+        if (earliest >= 0 && now.atZone(clock.zone).hour < earliest) return false
         return run() != null
     }
 
@@ -84,8 +95,7 @@ class BackupMirror(
         _running.value = true
         try {
             val backup = config.backupRoot() ?: return null
-            val sourceB64 = rootLocator.rootPathB64() ?: return null
-            val sourceDisplay = runCatching { PathCodec.decode(sourceB64) }.getOrNull() ?: return null
+            val sourceDisplay = config.backupSource()?.second ?: return null
             val backupDisplay = backup.second
 
             // Nested roots would copy the copy: refuse outright.
