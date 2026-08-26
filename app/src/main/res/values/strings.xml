@@ -269,6 +269,7 @@
     <string name="settings_backup_no_subfolders">No subfolders here.</string>
     <string name="settings_backup_choose_here">Use this folder</string>
     <string name="settings_backup_frequency">Frequency</string>
+    <string name="settings_backup_route">Everything in %1$s → %2$s (trash excluded)</string>
     <string name="backup_freq_daily">Daily</string>
     <string name="backup_freq_weekly">Weekly</string>
     <string name="backup_freq_monthly">Monthly</string>

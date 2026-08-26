@@ -323,9 +323,17 @@ fun SettingsScreen(
             val lastBackupAt by viewModel.lastBackupAt.collectAsStateWithLifecycle()
             val backupRunning by viewModel.backupRunning.collectAsStateWithLifecycle()
             val backupReport by viewModel.backupReport.collectAsStateWithLifecycle()
+            val sourceRoot = state.connection.rootDisplayPath
             SettingRow(
                 name = stringResource(R.string.settings_backup_disk),
-                sub = backupRoot?.second ?: stringResource(R.string.settings_backup_disk_none),
+                sub = backupRoot?.let { (_, destDisplay) ->
+                    val sourceName = sourceRoot?.trimEnd('/')?.substringAfterLast('/') ?: "?"
+                    stringResource(
+                        R.string.settings_backup_route,
+                        sourceRoot ?: "?",
+                        "$destDisplay/$sourceName",
+                    )
+                } ?: stringResource(R.string.settings_backup_disk_none),
                 onClick = viewModel::openBackupPicker,
             ) {
                 Icon(
