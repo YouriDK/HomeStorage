@@ -132,6 +132,10 @@ dependencies {
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.ktor.client.mock)
 
+    // M8 feasibility spike only — test scopes, never ships in the APK.
+    testImplementation("org.cryptomator:cryptolib:2.2.0")
+    androidTestImplementation("org.cryptomator:cryptolib:2.2.0")
+
     androidTestImplementation(libs.androidx.test.ext.junit)
     androidTestImplementation(libs.androidx.test.runner)
 }
