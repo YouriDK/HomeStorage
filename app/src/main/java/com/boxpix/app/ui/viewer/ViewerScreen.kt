@@ -151,6 +151,7 @@ fun ViewerScreen(
             .fillMaxSize()
             .background(Color.Black),
     ) {
+        val vaultVideoFactory = remember { viewModel.vaultVideoFactory() }
         HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
             val item = state.items[page]
             MediaPage(
@@ -158,6 +159,8 @@ fun ViewerScreen(
                 isCurrent = page == pagerState.currentPage,
                 streamingUrl = viewModel.streamingUrl(item),
                 headers = state.videoAccess?.headers.orEmpty(),
+                vaultVideoUri = if (item.isVideo) viewModel.vaultVideoUri(item) else null,
+                vaultVideoFactory = vaultVideoFactory,
                 chromeVisible = state.chromeVisible,
                 onTap = viewModel::toggleChrome,
             )
@@ -320,6 +323,9 @@ private fun MediaPage(
     isCurrent: Boolean,
     streamingUrl: String?,
     headers: Map<String, String>,
+    /** Non-null for vault videos: play through the decrypting DataSource. */
+    vaultVideoUri: String?,
+    vaultVideoFactory: androidx.media3.datasource.DataSource.Factory,
     chromeVisible: Boolean,
     onTap: () -> Unit,
 ) {
@@ -351,10 +357,20 @@ private fun MediaPage(
                     )
                 },
             )
-        } else if (isCurrent && streamingUrl != null) {
+        } else if (isCurrent && vaultVideoUri != null) {
             VideoPlayer(
-                url = streamingUrl,
-                headers = headers,
+                uri = vaultVideoUri,
+                dataSourceFactory = vaultVideoFactory,
+                controlsVisible = chromeVisible,
+                modifier = Modifier.fillMaxSize(),
+            )
+        } else if (isCurrent && streamingUrl != null) {
+            val httpFactory = remember(headers) {
+                DefaultHttpDataSource.Factory().setDefaultRequestProperties(headers)
+            }
+            VideoPlayer(
+                uri = streamingUrl,
+                dataSourceFactory = httpFactory,
                 controlsVisible = chromeVisible,
                 modifier = Modifier.fillMaxSize(),
             )
@@ -382,19 +398,18 @@ private fun MediaPage(
 @OptIn(UnstableApi::class)
 @Composable
 private fun VideoPlayer(
-    url: String,
-    headers: Map<String, String>,
+    uri: String,
+    dataSourceFactory: androidx.media3.datasource.DataSource.Factory,
     controlsVisible: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
-    val player = remember(url) {
-        val dataSourceFactory = DefaultHttpDataSource.Factory().setDefaultRequestProperties(headers)
+    val player = remember(uri) {
         ExoPlayer.Builder(context)
             .setMediaSourceFactory(DefaultMediaSourceFactory(dataSourceFactory))
             .build()
             .apply {
-                setMediaItem(androidx.media3.common.MediaItem.fromUri(url))
+                setMediaItem(androidx.media3.common.MediaItem.fromUri(uri))
                 prepare()
             }
     }

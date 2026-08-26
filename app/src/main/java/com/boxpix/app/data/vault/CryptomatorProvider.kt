@@ -272,6 +272,45 @@ class CryptomatorProvider(
         children.filter { it.isDirectory }.forEach { collectPhysicalDirs(it.displayPath, into) }
     }
 
+    /**
+     * Opens one file for random access (M8 video): decrypts its header once
+     * and returns a handle that turns cleartext ranges into bounded
+     * ciphertext range requests. The handle dies with the cryptor at lock.
+     */
+    suspend fun openFile(pathB64: String): FbxResult<VaultFileHandle> {
+        val clear = clearPath(pathB64)
+        val parentPath = clear.substringBeforeLast('/').ifEmpty { "/" }
+        val name = clear.substringAfterLast('/')
+        val parent = when (val r = resolveDir(parentPath)) {
+            is FbxResult.Ok -> r.value
+            is FbxResult.Err -> return r
+        }
+        val encrypted = encryptName(name, parent.dirId)
+        val physical = "${parent.physicalDisplay}/$encrypted"
+        val ciphertextSize = when (val listed = inner.list(PathCodec.encode(parent.physicalDisplay))) {
+            is FbxResult.Ok -> listed.value.firstOrNull { it.name == encrypted }?.sizeBytes
+                ?: return FbxResult.Err(FreeboxError.Api(StorageProvider.ERROR_NOT_FOUND))
+            is FbxResult.Err -> return listed
+        }
+        val headerSize = cryptor.fileHeaderCryptor().headerSize()
+        val headerBytes = when (
+            val r = inner.download(PathCodec.encode(physical), 0L until headerSize.toLong())
+        ) {
+            is FbxResult.Ok -> r.value
+            is FbxResult.Err -> return r
+        }
+        return withContext(cryptoDispatcher) {
+            try {
+                val header = cryptor.fileHeaderCryptor().decryptHeader(ByteBuffer.wrap(headerBytes))
+                FbxResult.Ok(
+                    VaultFileHandle(inner, cryptor, PathCodec.encode(physical), ciphertextSize, header),
+                )
+            } catch (_: AuthenticationFailedException) {
+                FbxResult.Err(FreeboxError.Api(ERROR_VAULT_INTEGRITY))
+            }
+        }
+    }
+
     /** Drops every cached directory resolution; called on lock and after mutations. */
     suspend fun invalidateResolutionCache() {
         cacheMutex.withLock { dirCache.clear() }

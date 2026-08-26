@@ -196,6 +196,14 @@ class ViewerViewModel @Inject constructor(
     fun streamingUrl(item: MediaRef): String? =
         _state.value.videoAccess?.let { "${it.baseUrl}/dl/${item.pathB64}" }
 
+    /** M8 video: vault media stream through the decrypting DataSource instead. */
+    fun vaultVideoFactory(): androidx.media3.datasource.DataSource.Factory =
+        com.boxpix.app.data.vault.VaultVideoDataSource.Factory(vaultSession)
+
+    fun vaultVideoUri(item: MediaRef): String? =
+        vaultRelative(item.displayPath)
+            ?.let { com.boxpix.app.data.vault.VaultVideoDataSource.uriFor(it).toString() }
+
     fun toggleChrome() = _state.update { it.copy(chromeVisible = !it.chromeVisible) }
 
     fun setInfoOpen(open: Boolean) = _state.update { it.copy(infoOpen = open) }
