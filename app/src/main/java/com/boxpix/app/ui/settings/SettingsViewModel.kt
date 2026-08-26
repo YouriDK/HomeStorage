@@ -58,6 +58,7 @@ class SettingsViewModel @Inject constructor(
     private val xmpProcessor: XmpQueueProcessor,
     private val workerStatusFile: WorkerStatusFile,
     private val scanExclusion: ScanExclusionRepository,
+    private val vaultSession: com.boxpix.app.data.vault.VaultSession,
     @ApplicationContext private val context: Context,
 ) : ViewModel() {
 
@@ -173,7 +174,11 @@ class SettingsViewModel @Inject constructor(
     val exportUri: StateFlow<Uri?> = _exportUri.asStateFlow()
 
     fun setGridColumns(columns: Int) = launch { uiPrefs.setGridColumns(columns) }
-    fun setUseFake(useFake: Boolean) = launch { uiPrefs.setUseFakeProvider(useFake) }
+    fun setUseFake(useFake: Boolean) = launch {
+        // Another tree entirely: an unlocked vault must not survive the switch.
+        vaultSession.lock()
+        uiPrefs.setUseFakeProvider(useFake)
+    }
     fun setThemeMode(mode: String) = launch { uiPrefs.setThemeMode(mode) }
     fun setAccentPreset(preset: String) = launch { uiPrefs.setAccentPreset(preset) }
     fun setXmpEnabled(enabled: Boolean) = launch { uiPrefs.setXmpWriteEnabled(enabled) }
@@ -239,11 +244,17 @@ class SettingsViewModel @Inject constructor(
     }
 
     /** Re-pick disk/root without re-pairing: onboarding reopens on the disk step. */
-    fun changeRootFolder() = launch { settings.clearRoot() }
+    fun changeRootFolder() = launch {
+        // Switching disks/roots locks the vault: an open vault pointing at a
+        // tree we just left would re-enter itself on the new Explorer.
+        vaultSession.lock()
+        settings.clearRoot()
+    }
 
     /** Forgets the app token and the connection config; onboarding takes over. */
     fun resetPairing() {
         viewModelScope.launch(Dispatchers.IO) {
+            vaultSession.lock()
             tokenStore.clear()
             sessions.dropSession()
             resolver.invalidate()

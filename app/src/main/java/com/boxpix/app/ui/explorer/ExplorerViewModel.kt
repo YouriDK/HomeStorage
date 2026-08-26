@@ -161,7 +161,9 @@ class ExplorerViewModel @Inject constructor(
             if (root != null) load(initial = true)
         }
         viewModelScope.launch {
-            var lastVault: VaultState = VaultState.NoVault
+            // Seeded with the CURRENT state: a ViewModel recreated while the
+            // vault is already open (disk switch) must not fake a transition.
+            var lastVault: VaultState = vaultSession.state.value
             vaultSession.state.collect { vault ->
                 _state.update { it.copy(vault = vault, vaultMount = vaultSession.mountDisplayPath) }
                 if (vault == VaultState.Unlocked && lastVault != VaultState.Unlocked) {
