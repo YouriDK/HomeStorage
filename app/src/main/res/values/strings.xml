@@ -140,6 +140,7 @@
     <string name="worker_pass_videos">Video thumbnails</string>
     <string name="worker_pass_xmp">XMP</string>
     <string name="worker_pass_purge">Trash purge</string>
+    <string name="worker_pass_backup">Backup mirror</string>
     <string name="worker_pass_never">never</string>
     <string name="worker_failed_count">%1$d failed</string>
     <string name="worker_action_pause">Pause</string>

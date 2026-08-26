@@ -126,6 +126,7 @@ class WorkerTelemetry @Inject constructor(private val clock: Clock) {
         const val PASS_VIDEO_THUMBS = "video_thumbs"
         const val PASS_XMP = "xmp"
         const val PASS_PURGE = "purge"
+        const val PASS_BACKUP = "backup"
         private const val MAX_ERRORS = 5
     }
 }

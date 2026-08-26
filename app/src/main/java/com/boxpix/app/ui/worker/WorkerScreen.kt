@@ -359,6 +359,7 @@ fun WorkerScreen(
             PassRow(stringResource(R.string.worker_pass_videos), state.lastPasses[WorkerTelemetry.PASS_VIDEO_THUMBS])
             PassRow(stringResource(R.string.worker_pass_xmp), state.lastPasses[WorkerTelemetry.PASS_XMP])
             PassRow(stringResource(R.string.worker_pass_purge), state.lastPasses[WorkerTelemetry.PASS_PURGE])
+            PassRow(stringResource(R.string.worker_pass_backup), state.lastPasses[WorkerTelemetry.PASS_BACKUP])
 
             if (state.errors.isNotEmpty()) {
                 SectionTitle(stringResource(R.string.worker_section_errors))

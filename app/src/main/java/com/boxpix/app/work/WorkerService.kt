@@ -95,7 +95,9 @@ class WorkerService : Service() {
                     telemetry.passDone(WorkerTelemetry.PASS_PURGE)
                     // Weekly disk-to-disk mirror (owner's request): the box
                     // copies server-side; additive only, .trash excluded.
-                    backupMirror.runIfDue()
+                    if (backupMirror.runIfDue()) {
+                        telemetry.passDone(WorkerTelemetry.PASS_BACKUP)
+                    }
                     cycles++
                     statusFile.write(cycles)
                 }
