@@ -51,4 +51,24 @@ object MediaTypes {
 
     fun extensionOf(fileName: String): String =
         fileName.substringAfterLast('.', "").lowercase()
+
+    /**
+     * Best-effort mime from the extension — for providers that have no server
+     * to ask (the vault decrypts names locally; the box never sees them).
+     */
+    fun mimeTypeFor(fileName: String): String = when (extensionOf(fileName)) {
+        "jpg", "jpeg" -> "image/jpeg"
+        "png" -> "image/png"
+        "webp" -> "image/webp"
+        "heic", "heif" -> "image/heic"
+        "gif" -> "image/gif"
+        "avif" -> "image/avif"
+        "bmp" -> "image/bmp"
+        "mp4", "m4v" -> "video/mp4"
+        "mov" -> "video/quicktime"
+        "mkv" -> "video/x-matroska"
+        "webm" -> "video/webm"
+        "3gp" -> "video/3gpp"
+        else -> "application/octet-stream"
+    }
 }

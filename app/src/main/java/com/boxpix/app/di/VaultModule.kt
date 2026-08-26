@@ -5,6 +5,7 @@ import com.boxpix.app.data.storage.StorageProvider
 import com.boxpix.app.data.vault.AndroidVaultKeyStore
 import com.boxpix.app.data.vault.VaultAutoLock
 import com.boxpix.app.data.vault.VaultKeyStore
+import com.boxpix.app.data.vault.VaultMetaRepository
 import com.boxpix.app.data.vault.VaultRoutingProvider
 import com.boxpix.app.data.vault.VaultSession
 import dagger.Binds
@@ -31,6 +32,11 @@ object VaultModule {
     @Singleton
     fun storageProvider(@DiskStorage disk: StorageProvider, session: VaultSession): StorageProvider =
         VaultRoutingProvider(disk, session)
+
+    @Provides
+    @Singleton
+    fun vaultMetaRepository(session: VaultSession, scope: CoroutineScope): VaultMetaRepository =
+        VaultMetaRepository(session, scope)
 
     @Provides
     @Singleton

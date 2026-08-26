@@ -18,6 +18,10 @@ import com.boxpix.app.data.tags.TagRepository
 import com.boxpix.app.data.trash.TrashRepository
 import com.boxpix.app.data.freebox.api.FreeboxApiClient
 import com.boxpix.app.data.freebox.api.PathCodec
+import com.boxpix.app.data.vault.VaultMetaRepository
+import com.boxpix.app.data.vault.VaultPaths
+import com.boxpix.app.data.vault.VaultSession
+import com.boxpix.app.data.vault.VaultState
 import com.boxpix.app.ui.explorer.ExplorerViewModel.FolderRef
 import com.boxpix.app.ui.explorer.ExplorerViewModel.MoveState
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -28,6 +32,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -45,8 +50,15 @@ class ViewerViewModel @Inject constructor(
     private val rootLocator: RootLocator,
     private val tagRepository: TagRepository,
     private val downloadRequester: DownloadRequester,
+    private val vaultSession: VaultSession,
+    private val vaultMeta: VaultMetaRepository,
     @ApplicationContext private val context: Context,
 ) : ViewModel() {
+
+    private fun vaultRelative(displayPath: String): String? =
+        vaultSession.mountDisplayPath
+            ?.takeIf { VaultPaths.isVaultPath(displayPath) }
+            ?.let { VaultPaths.vaultRelative(displayPath, it) }
 
     private val _downloadConfirm = MutableStateFlow<DownloadRequester.Outcome.NeedsConfirmation?>(null)
     val downloadConfirm: StateFlow<DownloadRequester.Outcome.NeedsConfirmation?> = _downloadConfirm.asStateFlow()
@@ -94,29 +106,73 @@ class ViewerViewModel @Inject constructor(
     val allTags = tagRepository.tags
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    val favoritePaths = tagRepository.favoritePaths
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList<String>())
+    /** Vault tag names as picker rows (negative pseudo-ids), for vault media. */
+    val vaultTags = kotlinx.coroutines.flow.combine(vaultMeta.tags, vaultSession.state) { _, _ ->
+        vaultMeta.tagCounts().map { (name, count) ->
+            TagWithCount(
+                id = VaultMetaRepository.syntheticTagId(name),
+                name = name,
+                pinned = false,
+                isSystem = false,
+                usageCount = count,
+            )
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    fun tagIdsFlow(pathB64: String) = tagRepository.tagIdsFor(pathB64)
+    val favoritePaths = kotlinx.coroutines.flow.combine(
+        tagRepository.favoritePaths,
+        vaultMeta.tags,
+        vaultSession.state,
+    ) { roomPaths, _, vaultState ->
+        val mount = vaultSession.mountDisplayPath
+        if (vaultState != VaultState.Unlocked || mount == null) {
+            roomPaths
+        } else {
+            roomPaths + vaultMeta.favoriteRelativePaths().map { PathCodec.encode("$mount$it") }
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList<String>())
+
+    fun tagIdsFlow(pathB64: String): kotlinx.coroutines.flow.Flow<List<Long>> {
+        val display = runCatching { PathCodec.decode(pathB64) }.getOrDefault("")
+        val relative = vaultRelative(display)
+            ?: return tagRepository.tagIdsFor(pathB64)
+        return vaultMeta.tags.map { file ->
+            file.files[relative]?.tags.orEmpty().map { VaultMetaRepository.syntheticTagId(it) }
+        }
+    }
 
     fun toggleTag(item: MediaRef, tag: TagWithCount, currentlySelected: Boolean) {
         viewModelScope.launch {
-            if (currentlySelected) {
-                tagRepository.removeTag(item, tag.id)
-            } else {
-                tagRepository.addTag(item, tag.id)
+            val relative = vaultRelative(item.displayPath)
+            when {
+                relative != null && currentlySelected -> vaultMeta.removeTag(relative, tag.name)
+                relative != null -> vaultMeta.addTag(relative, tag.name)
+                currentlySelected -> tagRepository.removeTag(item, tag.id)
+                else -> tagRepository.addTag(item, tag.id)
             }
         }
     }
 
     fun createAndTag(item: MediaRef, name: String) {
         viewModelScope.launch {
-            tagRepository.createTag(name)?.let { tagRepository.addTag(item, it.id) }
+            val relative = vaultRelative(item.displayPath)
+            if (relative != null) {
+                vaultMeta.createTag(name)?.let { vaultMeta.addTag(relative, it) }
+            } else {
+                tagRepository.createTag(name)?.let { tagRepository.addTag(item, it.id) }
+            }
         }
     }
 
     fun toggleFavorite(item: MediaRef) {
-        viewModelScope.launch { tagRepository.toggleFavorite(item) }
+        viewModelScope.launch {
+            val relative = vaultRelative(item.displayPath)
+            if (relative != null) {
+                vaultMeta.toggleFavorite(relative)
+            } else {
+                tagRepository.toggleFavorite(item)
+            }
+        }
     }
 
     init {

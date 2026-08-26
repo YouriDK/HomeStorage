@@ -291,8 +291,9 @@ fun ViewerScreen(
     }
 
     if (showTagPicker) {
+        val vaultTags by viewModel.vaultTags.collectAsStateWithLifecycle()
         TagPickerSheet(
-            tags = allTags.filterNot { it.isSystem },
+            tags = if (inVault) vaultTags else allTags.filterNot { it.isSystem },
             selectedIds = currentTagIds.toSet(),
             onToggle = { tag -> viewModel.toggleTag(current, tag, tag.id in currentTagIds) },
             onCreate = { name -> viewModel.createAndTag(current, name) },
@@ -680,14 +681,16 @@ private fun ViewerActionBar(
         horizontalArrangement = Arrangement.spacedBy(4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        // Tags and favourites live in the in-vault meta for vault media; the
+        // remaining actions stay Room/mirror/device-bound, so vault-hidden.
+        ViewerAction(Lucide.Tag, stringResource(R.string.viewer_action_tag), onClick = onTag)
+        ViewerAction(
+            icon = if (isFavorite) Lucide.HeartFilled else Lucide.Heart,
+            label = stringResource(R.string.viewer_action_favourite),
+            tint = if (isFavorite) Hues.Favorite else Color.White,
+            onClick = onFavorite,
+        )
         if (!inVault) {
-            ViewerAction(Lucide.Tag, stringResource(R.string.viewer_action_tag), onClick = onTag)
-            ViewerAction(
-                icon = if (isFavorite) Lucide.HeartFilled else Lucide.Heart,
-                label = stringResource(R.string.viewer_action_favourite),
-                tint = if (isFavorite) Hues.Favorite else Color.White,
-                onClick = onFavorite,
-            )
             ViewerAction(Lucide.FolderInput, stringResource(R.string.viewer_action_move), onClick = onMove)
             ViewerAction(Lucide.Trash2, stringResource(R.string.viewer_action_trash), onClick = onTrash)
             ViewerAction(Lucide.Share2, stringResource(R.string.viewer_action_share), onClick = onShare)

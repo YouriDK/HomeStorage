@@ -22,9 +22,12 @@ import com.boxpix.app.data.storage.StorageEnv
 import com.boxpix.app.data.storage.StorageProvider
 import com.boxpix.app.data.tags.TagRepository
 import com.boxpix.app.data.trash.TrashRepository
+import com.boxpix.app.data.db.TagWithCount as RoomTagWithCount
+import com.boxpix.app.data.vault.VaultMetaRepository
 import com.boxpix.app.data.vault.VaultPaths
 import com.boxpix.app.data.vault.VaultSession
 import com.boxpix.app.data.vault.VaultState
+import kotlinx.coroutines.flow.combine
 import com.boxpix.app.ui.search.SearchContext
 import com.boxpix.app.ui.sortmode.SortSession
 import com.boxpix.app.ui.viewer.ViewerSession
@@ -63,6 +66,7 @@ class ExplorerViewModel @Inject constructor(
     private val downloadRequester: DownloadRequester,
     private val metadataRepository: MetadataRepository,
     private val vaultSession: VaultSession,
+    private val vaultMeta: VaultMetaRepository,
 ) : ViewModel() {
 
     private val _downloadConfirm =
@@ -184,7 +188,21 @@ class ExplorerViewModel @Inject constructor(
             }
         }
         viewModelScope.launch {
-            tagRepository.favoritePaths.collect { paths ->
+            // Grid hearts: Room favourites plus, while unlocked, the vault's
+            // own favourites (kept in the in-vault meta, never in Room).
+            combine(
+                tagRepository.favoritePaths,
+                vaultMeta.tags,
+                vaultSession.state,
+            ) { roomPaths, _, vaultState ->
+                val mount = vaultSession.mountDisplayPath
+                if (vaultState != VaultState.Unlocked || mount == null) {
+                    roomPaths
+                } else {
+                    roomPaths + vaultMeta.favoriteRelativePaths()
+                        .map { PathCodec.encode("$mount$it") }
+                }
+            }.collect { paths ->
                 _state.update { it.copy(favoritePaths = paths) }
             }
         }
@@ -198,6 +216,19 @@ class ExplorerViewModel @Inject constructor(
     val allTags = tagRepository.tags
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    /** The vault's tag names shaped for the shared picker (negative pseudo-ids). */
+    val vaultTags = combine(vaultMeta.tags, vaultSession.state) { _, _ ->
+        vaultMeta.tagCounts().map { (name, count) ->
+            RoomTagWithCount(
+                id = VaultMetaRepository.syntheticTagId(name),
+                name = name,
+                pinned = false,
+                isSystem = false,
+                usageCount = count,
+            )
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
     val exportConflict = tagRepository.exportConflict
 
     fun confirmConflictedExport() = tagRepository.confirmConflictedExport()
@@ -207,9 +238,18 @@ class ExplorerViewModel @Inject constructor(
     fun applyTagToSelection(tag: TagWithCount) {
         val medias = selectedEntries().filterNot { it.isDirectory }
         viewModelScope.launch {
-            medias.forEach { tagRepository.addTag(it.toMediaRef(), tag.id) }
+            if (_state.value.inVault) {
+                medias.forEach { media ->
+                    vaultRelative(media.displayPath)?.let { vaultMeta.addTag(it, tag.name) }
+                }
+            } else {
+                medias.forEach { tagRepository.addTag(it.toMediaRef(), tag.id) }
+            }
         }
     }
+
+    private fun vaultRelative(displayPath: String): String? =
+        vaultSession.mountDisplayPath?.let { VaultPaths.vaultRelative(displayPath, it) }
 
     /** Batch metadata (V1 feedback): tags + capture date + place on every selected media. */
     fun applyMetadataToSelection(tagIds: Set<Long>, takenAtEpochSeconds: Long?, location: String?) {
@@ -223,9 +263,16 @@ class ExplorerViewModel @Inject constructor(
 
     fun createTagAndApply(name: String) {
         viewModelScope.launch {
-            tagRepository.createTag(name)?.let { tag ->
-                selectedEntries().filterNot { it.isDirectory }
-                    .forEach { tagRepository.addTag(it.toMediaRef(), tag.id) }
+            if (_state.value.inVault) {
+                val created = vaultMeta.createTag(name) ?: return@launch
+                selectedEntries().filterNot { it.isDirectory }.forEach { media ->
+                    vaultRelative(media.displayPath)?.let { vaultMeta.addTag(it, created) }
+                }
+            } else {
+                tagRepository.createTag(name)?.let { tag ->
+                    selectedEntries().filterNot { it.isDirectory }
+                        .forEach { tagRepository.addTag(it.toMediaRef(), tag.id) }
+                }
             }
         }
     }

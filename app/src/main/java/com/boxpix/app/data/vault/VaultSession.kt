@@ -69,6 +69,15 @@ class VaultSession(
     private var configJwt: String? = null
     private var rawKeyForWrapping: ByteArray? = null
     private val csprng = SecureRandom()
+    private val lockParticipants = java.util.concurrent.CopyOnWriteArrayList<suspend () -> Unit>()
+
+    /**
+     * Runs right before teardown on every lock, while the vault is still
+     * readable/writable — the in-vault index uses it to flush pending writes.
+     */
+    fun registerLockParticipant(participant: suspend () -> Unit) {
+        lockParticipants += participant
+    }
 
     /**
      * Looks for `<disk root>/.vault/vault.cryptomator`. Present -> Locked
@@ -147,6 +156,9 @@ class VaultSession(
      * nothing decrypted remains reachable from the session.
      */
     suspend fun lock() {
+        if (_state.value == VaultState.Unlocked) {
+            lockParticipants.forEach { runCatching { it() } }
+        }
         transition.withLock {
             provider?.invalidateResolutionCache()
             provider = null

@@ -111,6 +111,8 @@ object VaultFixture {
         return out.toByteArray()
     }
 
+    fun hashDirectoryId(dirId: String): String = cryptor.fileNameCryptor().hashDirectoryId(dirId)
+
     fun encryptedName(clearName: String, dirId: String): String =
         cryptor.fileNameCryptor().encryptFilename(
             BaseEncoding.base64Url(),

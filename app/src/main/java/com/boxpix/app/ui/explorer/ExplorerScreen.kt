@@ -229,8 +229,9 @@ fun ExplorerScreen(
     }
 
     if (showTagPicker) {
+        val vaultTags by viewModel.vaultTags.collectAsStateWithLifecycle()
         TagPickerSheet(
-            tags = allTags.filterNot { it.isSystem },
+            tags = if (state.inVault) vaultTags else allTags.filterNot { it.isSystem },
             selectedIds = emptySet(),
             onToggle = { tag -> viewModel.applyTagToSelection(tag) },
             onCreate = { name -> viewModel.createTagAndApply(name) },
@@ -572,15 +573,16 @@ private fun SelectionBar(
                 )
             }
         }
+        // Tagging works in the vault too — routed to the in-vault tags file.
+        IconButton(onClick = onTag) {
+            Icon(
+                Lucide.Tag,
+                contentDescription = stringResource(R.string.explorer_action_tag),
+                tint = colors.dim,
+                modifier = Modifier.size(22.dp),
+            )
+        }
         if (!inVault) {
-            IconButton(onClick = onTag) {
-                Icon(
-                    Lucide.Tag,
-                    contentDescription = stringResource(R.string.explorer_action_tag),
-                    tint = colors.dim,
-                    modifier = Modifier.size(22.dp),
-                )
-            }
             // Room-first like tagging: works offline, the XMP queue drains later.
             IconButton(onClick = onEditMetadata) {
                 Icon(

@@ -3,6 +3,7 @@ package com.boxpix.app.data.vault
 import com.boxpix.app.core.FbxResult
 import com.boxpix.app.core.FreeboxError
 import com.boxpix.app.data.freebox.api.PathCodec
+import com.boxpix.app.data.media.MediaTypes
 import com.boxpix.app.data.storage.StorageCapabilities
 import com.boxpix.app.data.storage.StorageEntry
 import com.boxpix.app.data.storage.StorageProvider
@@ -14,9 +15,11 @@ import kotlinx.coroutines.withContext
 import org.cryptomator.cryptolib.api.AuthenticationFailedException
 import org.cryptomator.cryptolib.api.Cryptor
 import org.cryptomator.cryptolib.common.DecryptingReadableByteChannel
+import org.cryptomator.cryptolib.common.EncryptingWritableByteChannel
 import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
 import java.nio.channels.Channels
+import java.util.UUID
 
 /**
  * StorageProvider view over a Cryptomator vault (format 8) stored behind
@@ -87,6 +90,64 @@ class CryptomatorProvider(
                 FbxResult.Err(FreeboxError.Api(ERROR_VAULT_INTEGRITY))
             }
         }
+    }
+
+    /**
+     * Creates a cleartext folder: encrypted node dir + its `dir.c9r` pointer,
+     * the hashed physical dir, and the `dirid.c9r` backup Cryptomator desktop
+     * also writes. New entry — nothing cached becomes stale.
+     */
+    override suspend fun mkdir(parentB64: String, name: String): FbxResult<StorageEntry> {
+        val clearParent = clearPath(parentB64)
+        val parent = when (val r = resolveDir(clearParent)) {
+            is FbxResult.Ok -> r.value
+            is FbxResult.Err -> return r
+        }
+        val encrypted = encryptName(name, parent.dirId)
+        val nodeDir = when (val made = inner.mkdir(PathCodec.encode(parent.physicalDisplay), encrypted)) {
+            is FbxResult.Ok -> "${parent.physicalDisplay}/$encrypted"
+            is FbxResult.Err -> return made
+        }
+        val dirId = UUID.randomUUID().toString()
+        inner.upload(PathCodec.encode(nodeDir), VaultFormat.DIR_ID_FILE, dirId.toByteArray(Charsets.UTF_8))
+            .let { if (it is FbxResult.Err) return it }
+
+        val physical = physicalDirOf(dirId)
+        val dataParent = physical.substringBeforeLast('/')
+        inner.mkdir(PathCodec.encode(dataParent.substringBeforeLast('/')), dataParent.substringAfterLast('/'))
+        when (val made = inner.mkdir(PathCodec.encode(dataParent), physical.substringAfterLast('/'))) {
+            is FbxResult.Ok -> Unit
+            is FbxResult.Err -> return made
+        }
+        withContext(cryptoDispatcher) {
+            inner.upload(PathCodec.encode(physical), VaultFormat.DIR_ID_BACKUP, encryptBytes(dirId.toByteArray(Charsets.UTF_8)))
+        }
+
+        val display = if (clearParent == "/") "/$name" else "$clearParent/$name"
+        return FbxResult.Ok(
+            StorageEntry(
+                pathB64 = PathCodec.encode(display),
+                displayPath = display,
+                name = name,
+                isDirectory = true,
+                sizeBytes = 0,
+                modifiedEpochSeconds = System.currentTimeMillis() / 1000,
+                mimeType = null,
+                hidden = false,
+            ),
+        )
+    }
+
+    /** Encrypts [bytes] fully in RAM, then hands the ciphertext to the disk. */
+    override suspend fun upload(parentB64: String, name: String, bytes: ByteArray): FbxResult<Unit> {
+        val clearParent = clearPath(parentB64)
+        val parent = when (val r = resolveDir(clearParent)) {
+            is FbxResult.Ok -> r.value
+            is FbxResult.Err -> return r
+        }
+        val encrypted = encryptName(name, parent.dirId)
+        val ciphertext = withContext(cryptoDispatcher) { encryptBytes(bytes) }
+        return inner.upload(PathCodec.encode(parent.physicalDisplay), encrypted, ciphertext)
     }
 
     /** Drops every cached directory resolution; called on lock and after mutations. */
@@ -176,7 +237,7 @@ class CryptomatorProvider(
             isDirectory = entry.isDirectory,
             sizeBytes = if (entry.isDirectory) 0 else cleartextSizeOf(entry.sizeBytes),
             modifiedEpochSeconds = entry.modifiedEpochSeconds,
-            mimeType = if (entry.isDirectory) null else mimeTypeFor(clearName),
+            mimeType = if (entry.isDirectory) null else MediaTypes.mimeTypeFor(clearName),
             hidden = false,
         )
     }
@@ -186,6 +247,14 @@ class CryptomatorProvider(
             .cleartextSize(ciphertextSize - cryptor.fileHeaderCryptor().headerSize())
     } catch (_: IllegalArgumentException) {
         0L // truncated/foreign file: the listing still shows it, download will fail cleanly
+    }
+
+    private fun encryptBytes(cleartext: ByteArray): ByteArray {
+        val out = ByteArrayOutputStream(cleartext.size + 1024)
+        EncryptingWritableByteChannel(Channels.newChannel(out), cryptor).use {
+            it.write(ByteBuffer.wrap(cleartext))
+        }
+        return out.toByteArray()
     }
 
     private fun decrypt(ciphertext: ByteArray): ByteArray {
@@ -217,18 +286,6 @@ class CryptomatorProvider(
     private fun notFoundOr(err: FbxResult.Err): FbxResult.Err = when (err.error) {
         is FreeboxError.Api -> FbxResult.Err(FreeboxError.Api(StorageProvider.ERROR_NOT_FOUND))
         else -> err // transport problems must surface as such, not as a fake 404
-    }
-
-    private fun mimeTypeFor(name: String): String = when (name.substringAfterLast('.').lowercase()) {
-        "jpg", "jpeg" -> "image/jpeg"
-        "png" -> "image/png"
-        "webp" -> "image/webp"
-        "heic" -> "image/heic"
-        "gif" -> "image/gif"
-        "mp4" -> "video/mp4"
-        "mov" -> "video/quicktime"
-        "mkv" -> "video/x-matroska"
-        else -> "application/octet-stream"
     }
 
     companion object {
