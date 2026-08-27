@@ -266,6 +266,32 @@ fun SettingsScreen(
                     )
                 }
             }
+            val vaultLocation by viewModel.vaultLocation.collectAsStateWithLifecycle()
+            SettingRow(
+                name = stringResource(R.string.settings_vault_location),
+                sub = vaultLocation?.second
+                    ?: stringResource(R.string.settings_vault_location_default),
+                onClick = {
+                    viewModel.openFolderPicker(SettingsViewModel.FolderPickTarget.VAULT_LOCATION)
+                },
+            ) {
+                if (vaultLocation != null) {
+                    IconButton(onClick = viewModel::clearVaultLocation) {
+                        Icon(
+                            Lucide.X,
+                            contentDescription = stringResource(R.string.settings_vault_location_reset),
+                            tint = colors.faint,
+                            modifier = Modifier.size(16.dp),
+                        )
+                    }
+                }
+                Icon(
+                    Lucide.ChevronRight,
+                    contentDescription = null,
+                    tint = colors.faint,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
             SettingRow(
                 name = stringResource(R.string.settings_manage_tags),
                 sub = null,
@@ -330,7 +356,7 @@ fun SettingsScreen(
                 sub = backupSource?.second
                     ?: stringResource(R.string.settings_backup_source_none),
                 onClick = {
-                    viewModel.openBackupPicker(SettingsViewModel.BackupPickTarget.SOURCE)
+                    viewModel.openFolderPicker(SettingsViewModel.FolderPickTarget.BACKUP_SOURCE)
                 },
             ) {
                 Icon(
@@ -356,7 +382,7 @@ fun SettingsScreen(
                     else -> stringResource(R.string.settings_backup_disk_none)
                 },
                 onClick = {
-                    viewModel.openBackupPicker(SettingsViewModel.BackupPickTarget.DESTINATION)
+                    viewModel.openFolderPicker(SettingsViewModel.FolderPickTarget.BACKUP_DESTINATION)
                 },
             ) {
                 Icon(
@@ -427,18 +453,20 @@ fun SettingsScreen(
             }
             HairlineDivider()
 
-            val backupBrowse by viewModel.backupBrowse.collectAsStateWithLifecycle()
-            backupBrowse?.let { browse ->
+            val folderBrowse by viewModel.folderBrowse.collectAsStateWithLifecycle()
+            folderBrowse?.let { browse ->
                 androidx.compose.material3.AlertDialog(
-                    onDismissRequest = viewModel::closeBackupPicker,
+                    onDismissRequest = viewModel::closeFolderPicker,
                     containerColor = colors.elevated,
                     shape = RoundedCornerShape(14.dp),
                     title = {
                         val title = when (browse.target) {
-                            SettingsViewModel.BackupPickTarget.SOURCE ->
+                            SettingsViewModel.FolderPickTarget.BACKUP_SOURCE ->
                                 R.string.settings_backup_source_picker_title
-                            SettingsViewModel.BackupPickTarget.DESTINATION ->
+                            SettingsViewModel.FolderPickTarget.BACKUP_DESTINATION ->
                                 R.string.settings_backup_picker_title
+                            SettingsViewModel.FolderPickTarget.VAULT_LOCATION ->
+                                R.string.settings_vault_picker_title
                         }
                         Text(stringResource(title), color = colors.text)
                     },
@@ -446,7 +474,7 @@ fun SettingsScreen(
                         Column {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 if (browse.stack.isNotEmpty()) {
-                                    IconButton(onClick = viewModel::backupBrowseUp) {
+                                    IconButton(onClick = viewModel::folderBrowseUp) {
                                         Icon(
                                             Lucide.ArrowLeft,
                                             contentDescription = null,
@@ -471,7 +499,7 @@ fun SettingsScreen(
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .clickable { viewModel.backupBrowseInto(folder) }
+                                            .clickable { viewModel.folderBrowseInto(folder) }
                                             .padding(vertical = 12.dp),
                                         verticalAlignment = Alignment.CenterVertically,
                                     ) {
@@ -505,7 +533,7 @@ fun SettingsScreen(
                     },
                     confirmButton = {
                         androidx.compose.material3.TextButton(
-                            onClick = viewModel::chooseBackupHere,
+                            onClick = viewModel::chooseFolderHere,
                             enabled = browse.current != null,
                         ) {
                             Text(
@@ -515,7 +543,7 @@ fun SettingsScreen(
                         }
                     },
                     dismissButton = {
-                        androidx.compose.material3.TextButton(onClick = viewModel::closeBackupPicker) {
+                        androidx.compose.material3.TextButton(onClick = viewModel::closeFolderPicker) {
                             Text(stringResource(R.string.dialog_cancel), color = colors.dim)
                         }
                     },

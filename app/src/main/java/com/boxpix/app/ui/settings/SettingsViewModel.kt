@@ -194,11 +194,22 @@ class SettingsViewModel @Inject constructor(
     val backupRunning = backupMirror.running
     val backupReport = backupMirror.lastReport
 
-    enum class BackupPickTarget { SOURCE, DESTINATION }
+    // Vault location (owner's decision: vault and backup are separate concerns,
+    // neither follows the app root once set explicitly).
+    val vaultLocation = uiPrefs.vaultRoot
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    /** Backup folder picker (source or destination): a small browser over the disk. */
-    data class BackupBrowse(
-        val target: BackupPickTarget,
+    /** Back to the historical default: probe the app root. */
+    fun clearVaultLocation() = launch {
+        vaultSession.lock()
+        uiPrefs.setVaultRoot(null, null)
+    }
+
+    enum class FolderPickTarget { BACKUP_SOURCE, BACKUP_DESTINATION, VAULT_LOCATION }
+
+    /** Settings folder picker (backup source/destination, vault location). */
+    data class FolderBrowse(
+        val target: FolderPickTarget,
         val stack: List<com.boxpix.app.data.storage.StorageEntry> = emptyList(),
         val folders: List<com.boxpix.app.data.storage.StorageEntry> = emptyList(),
         val loading: Boolean = true,
@@ -206,48 +217,55 @@ class SettingsViewModel @Inject constructor(
         val current get() = stack.lastOrNull()
     }
 
-    private val _backupBrowse =
-        kotlinx.coroutines.flow.MutableStateFlow<BackupBrowse?>(null)
-    val backupBrowse: kotlinx.coroutines.flow.StateFlow<BackupBrowse?> = _backupBrowse
+    private val _folderBrowse =
+        kotlinx.coroutines.flow.MutableStateFlow<FolderBrowse?>(null)
+    val folderBrowse: kotlinx.coroutines.flow.StateFlow<FolderBrowse?> = _folderBrowse
 
-    fun openBackupPicker(target: BackupPickTarget) {
-        _backupBrowse.value = BackupBrowse(target)
-        backupBrowseList(null)
+    fun openFolderPicker(target: FolderPickTarget) {
+        _folderBrowse.value = FolderBrowse(target)
+        folderBrowseList(null)
     }
 
-    fun closeBackupPicker() {
-        _backupBrowse.value = null
+    fun closeFolderPicker() {
+        _folderBrowse.value = null
     }
 
-    fun backupBrowseInto(entry: com.boxpix.app.data.storage.StorageEntry) {
-        _backupBrowse.value = _backupBrowse.value?.let {
+    fun folderBrowseInto(entry: com.boxpix.app.data.storage.StorageEntry) {
+        _folderBrowse.value = _folderBrowse.value?.let {
             it.copy(stack = it.stack + entry, loading = true)
         }
-        backupBrowseList(entry.pathB64)
+        folderBrowseList(entry.pathB64)
     }
 
-    fun backupBrowseUp() {
-        val browse = _backupBrowse.value ?: return
+    fun folderBrowseUp() {
+        val browse = _folderBrowse.value ?: return
         val stack = browse.stack.dropLast(1)
-        _backupBrowse.value = browse.copy(stack = stack, loading = true)
-        backupBrowseList(stack.lastOrNull()?.pathB64)
+        _folderBrowse.value = browse.copy(stack = stack, loading = true)
+        folderBrowseList(stack.lastOrNull()?.pathB64)
     }
 
     /** Confirms the folder currently browsed as the picker's target. */
-    fun chooseBackupHere() = launch {
-        val browse = _backupBrowse.value ?: return@launch
+    fun chooseFolderHere() = launch {
+        val browse = _folderBrowse.value ?: return@launch
         val chosen = browse.current ?: return@launch
         when (browse.target) {
-            BackupPickTarget.SOURCE -> uiPrefs.setBackupSource(chosen.pathB64, chosen.displayPath)
-            BackupPickTarget.DESTINATION -> uiPrefs.setBackupRoot(chosen.pathB64, chosen.displayPath)
+            FolderPickTarget.BACKUP_SOURCE ->
+                uiPrefs.setBackupSource(chosen.pathB64, chosen.displayPath)
+            FolderPickTarget.BACKUP_DESTINATION ->
+                uiPrefs.setBackupRoot(chosen.pathB64, chosen.displayPath)
+            FolderPickTarget.VAULT_LOCATION -> {
+                // The old mount may point elsewhere: lock before re-pointing.
+                vaultSession.lock()
+                uiPrefs.setVaultRoot(chosen.pathB64, chosen.displayPath)
+            }
         }
-        _backupBrowse.value = null
+        _folderBrowse.value = null
     }
 
-    private fun backupBrowseList(pathB64: String?) = launch {
+    private fun folderBrowseList(pathB64: String?) = launch {
         val folders = storageProvider.list(pathB64, onlyFolders = true)
             .getOrNull().orEmpty().sortedBy { it.name.lowercase() }
-        _backupBrowse.value = _backupBrowse.value?.copy(folders = folders, loading = false)
+        _folderBrowse.value = _folderBrowse.value?.copy(folders = folders, loading = false)
     }
 
     fun backUpNow() = backupMirror.runAsync()

@@ -62,8 +62,9 @@ class VaultViewModel @Inject constructor(
     val settingsProbeFailed: StateFlow<Boolean> = _settingsProbeFailed.asStateFlow()
 
     /**
-     * The Settings entry point: probes `<configured root>/.vault` on demand,
-     * then opens the unlock sheet — or reports that nothing is there.
+     * The Settings entry point: probes `<vault location>/.vault` on demand
+     * (the configured vault location, falling back to the app root), then
+     * opens the unlock sheet — or reports that nothing is there.
      */
     fun openVaultFromSettings() {
         viewModelScope.launch {

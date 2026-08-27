@@ -89,6 +89,31 @@ class UiPrefsStore @Inject constructor(
         }
     }
 
+    /**
+     * Where the vault lives (the folder whose `.vault/` is probed) — vault and
+     * backup are separate concerns, and neither follows the app root once set.
+     * Null = fall back to the configured root (historical behavior).
+     */
+    val vaultRoot: Flow<Pair<String, String>?> = context.uiPrefsDataStore.data
+        .map { prefs ->
+            val b64 = prefs[KEY_VAULT_ROOT_B64]
+            val display = prefs[KEY_VAULT_ROOT_DISPLAY]
+            if (b64 != null && display != null) b64 to display else null
+        }
+        .distinctUntilChanged()
+
+    suspend fun setVaultRoot(pathB64: String?, displayPath: String?) {
+        context.uiPrefsDataStore.edit {
+            if (pathB64 == null || displayPath == null) {
+                it.remove(KEY_VAULT_ROOT_B64)
+                it.remove(KEY_VAULT_ROOT_DISPLAY)
+            } else {
+                it[KEY_VAULT_ROOT_B64] = pathB64
+                it[KEY_VAULT_ROOT_DISPLAY] = displayPath
+            }
+        }
+    }
+
     /** Local hour of day before which the scheduled backup pass waits; -1 = any time. */
     val backupEarliestHour: Flow<Int> = context.uiPrefsDataStore.data
         .map { it[KEY_BACKUP_EARLIEST_HOUR] ?: -1 }
@@ -227,6 +252,8 @@ class UiPrefsStore @Inject constructor(
         private val KEY_BACKUP_ROOT_DISPLAY = stringPreferencesKey("backup_root_display")
         private val KEY_BACKUP_SOURCE_B64 = stringPreferencesKey("backup_source_b64")
         private val KEY_BACKUP_SOURCE_DISPLAY = stringPreferencesKey("backup_source_display")
+        private val KEY_VAULT_ROOT_B64 = stringPreferencesKey("vault_root_b64")
+        private val KEY_VAULT_ROOT_DISPLAY = stringPreferencesKey("vault_root_display")
         private val KEY_BACKUP_EARLIEST_HOUR = intPreferencesKey("backup_earliest_hour")
         private val KEY_LAST_BACKUP_AT = androidx.datastore.preferences.core.longPreferencesKey("last_backup_at")
         private val KEY_BACKUP_INTERVAL_DAYS = androidx.datastore.preferences.core.longPreferencesKey("backup_interval_days")

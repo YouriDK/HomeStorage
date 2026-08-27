@@ -257,6 +257,10 @@
     <string name="settings_group_trash">Trash</string>
     <string name="settings_group_files">Files</string>
     <string name="settings_group_backup">Backup</string>
+    <string name="settings_vault_location">Vault location</string>
+    <string name="settings_vault_location_default">App root (default)</string>
+    <string name="settings_vault_location_reset">Reset to app root</string>
+    <string name="settings_vault_picker_title">Look for the vault in</string>
     <string name="settings_backup_source">Source folder</string>
     <string name="settings_backup_source_none">Not set — nothing is backed up</string>
     <string name="settings_backup_source_picker_title">Back up this folder</string>

@@ -18,6 +18,7 @@ import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import java.time.Clock
 import javax.inject.Singleton
 
@@ -27,8 +28,13 @@ object VaultModule {
 
     @Provides
     @Singleton
-    fun vaultSession(@DiskStorage disk: StorageProvider, rootLocator: RootLocator): VaultSession =
-        VaultSession(disk, rootLocator, Dispatchers.Default)
+    fun vaultSession(
+        @DiskStorage disk: StorageProvider,
+        rootLocator: RootLocator,
+        uiPrefs: com.boxpix.app.data.prefs.UiPrefsStore,
+    ): VaultSession = VaultSession(disk, rootLocator, Dispatchers.Default) {
+        uiPrefs.vaultRoot.first()?.second
+    }
 
     /** What the whole app injects: the disk with the vault mounted under .vault. */
     @Provides

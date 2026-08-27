@@ -33,6 +33,21 @@ class VaultSessionTest {
     }
 
     @Test
+    fun `configured vault location wins over the app root`() = runTest(timeout = 60.seconds) {
+        val counting = CountingStorageProvider(instantFake())
+        // The vault lives on the OTHER disk; the app root has none.
+        counting.mkdir(PathCodec.encode("/"), "Backup")
+        VaultFixture.install(counting, diskRootDisplay = "/Backup")
+
+        val followingRoot = VaultSession(counting, photosRoot, Dispatchers.Default)
+        assertEquals(VaultState.NoVault, followingRoot.probe())
+
+        val configured = VaultSession(counting, photosRoot, Dispatchers.Default) { "/Backup" }
+        assertEquals(VaultState.Locked, configured.probe())
+        assertEquals("/Backup/${VaultFormat.VAULT_DIR}", configured.mountDisplayPath)
+    }
+
+    @Test
     fun `no vault on disk - probe settles NoVault and nothing else runs`() = runTest {
         val counting = CountingStorageProvider(instantFake())
         val session = session(counting)

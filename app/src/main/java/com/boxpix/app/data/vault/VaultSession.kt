@@ -49,6 +49,11 @@ class VaultSession(
     private val inner: StorageProvider,
     private val rootLocator: RootLocator,
     private val cryptoDispatcher: CoroutineDispatcher,
+    /**
+     * Explicitly configured vault location (display path of the folder holding
+     * `.vault/`), independent from the app root; null = follow the app root.
+     */
+    private val configuredBase: suspend () -> String? = { null },
 ) {
 
     private val _state = MutableStateFlow<VaultState>(VaultState.NoVault)
@@ -95,12 +100,14 @@ class VaultSession(
     /**
      * Looks for `<base>/.vault/vault.cryptomator` — [baseDisplayPath] is the
      * folder to probe (discreet on-demand entry: the user asks from wherever
-     * they are), or null for the configured root. Present -> Locked (unless
-     * already unlocked); absent or failing -> NoVault, fail-closed.
+     * they are), or null for the configured vault location, itself falling
+     * back to the app root. Present -> Locked (unless already unlocked);
+     * absent or failing -> NoVault, fail-closed.
      */
     suspend fun probe(baseDisplayPath: String? = null): VaultState = transition.withLock {
         if (_state.value == VaultState.Unlocked) return@withLock _state.value
         val rootDisplay = baseDisplayPath
+            ?: configuredBase()
             ?: rootLocator.rootPathB64()?.let { runCatching { PathCodec.decode(it) }.getOrNull() }
             ?: return@withLock settle(VaultState.NoVault)
         val vaultRoot = "${rootDisplay.trimEnd('/')}/${VaultFormat.VAULT_DIR}"
